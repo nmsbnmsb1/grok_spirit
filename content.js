@@ -20,7 +20,9 @@ const FIELD_TYPES = {
   // Structured dialogue
   DIALOGUE: 'dialogue',
   // Read-only list for objects, positioning, text_elements
-  READONLY_LIST: 'readonly_list'
+  READONLY_LIST: 'readonly_list',
+  // Tag editor with chip-style interactions
+  TAGS: 'tags'
 };
 
 // Field configuration mapping
@@ -58,6 +60,9 @@ const FIELD_CONFIG = {
   },
   'visual_details.text_elements': {
     type: FIELD_TYPES.READONLY_LIST
+  },
+  'tags': {
+    type: FIELD_TYPES.TAGS
   }
 };
 
@@ -749,7 +754,15 @@ function createHierarchicalParams(promptObj) {
     {
       title: 'Tags',
       items: [
-        { key: 'tags', value: Array.isArray(promptObj.tags) ? promptObj.tags.join(', ') : (promptObj.tags || ''), path: 'tags' }
+        {
+          key: 'tags',
+          value: Array.isArray(promptObj.tags)
+            ? promptObj.tags
+            : (typeof promptObj.tags === 'string'
+              ? promptObj.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+              : []),
+          path: 'tags'
+        }
       ],
       collapsible: true,
       defaultCollapsed: false
@@ -788,6 +801,8 @@ function createFieldInput(item, promptObj) {
       return createDialogueInput(item, promptObj);
     case FIELD_TYPES.READONLY_LIST:
       return createReadonlyListInput(item);
+    case FIELD_TYPES.TAGS:
+      return createTagsInput(item);
     default:
       return createTextInput(item);
   }
@@ -802,6 +817,50 @@ function createOriginalPromptInput(item) {
       <label class="grok-spirit-key">${item.key}:</label>
       <div class="grok-spirit-field-container">
         <div class="grok-spirit-original-prompt" data-path="${item.path}">${displayValue}
+        </div>
+        <div class="grok-spirit-field-status" data-path="${item.path}">
+          <span class="grok-spirit-status-indicator grok-spirit-status-unchanged" title="Unchanged">●</span>
+          <button class="grok-spirit-field-undo" title="Undo this field" style="display: none;">↶</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Create chip-style tags input
+function createTagsInput(item) {
+  const rawTags = Array.isArray(item.value)
+    ? item.value
+    : (typeof item.value === 'string'
+      ? item.value.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+      : []);
+
+  const normalizedTags = rawTags
+    .map(tag => (typeof tag === 'string' ? tag.trim() : ''))
+    .filter(tag => tag.length > 0);
+
+  const originalTagsJson = JSON.stringify(normalizedTags);
+
+  return `
+    <div class="grok-spirit-pair">
+      <label class="grok-spirit-key">${item.key}:</label>
+      <div class="grok-spirit-field-container">
+        <div class="grok-spirit-tags-group"
+             data-path="${item.path}"
+             data-original="${escapeHtml(originalTagsJson)}"
+             data-current="${escapeHtml(originalTagsJson)}">
+          <div class="grok-spirit-tags-wrapper">
+            ${normalizedTags.map(tag => `
+              <span class="grok-spirit-tag-chip" data-tag="${escapeHtml(tag)}" title="Click remove to delete tag">
+                <span class="grok-spirit-tag-label">${escapeHtml(tag)}</span>
+                <button type="button" class="grok-spirit-tag-remove" aria-label="Remove ${escapeHtml(tag)}">×</button>
+              </span>
+            `).join('')}
+            <input type="text" class="grok-spirit-tag-input" placeholder="Add tag..." aria-label="Add tag">
+          </div>
+          <div class="grok-spirit-tags-actions">
+            <button type="button" class="grok-spirit-tag-add-btn">Add</button>
+          </div>
         </div>
         <div class="grok-spirit-field-status" data-path="${item.path}">
           <span class="grok-spirit-status-indicator grok-spirit-status-unchanged" title="Unchanged">●</span>
@@ -1254,6 +1313,12 @@ function addPanelEventListeners() {
     input.addEventListener('input', handleValueChange);
   });
 
+  // Tags interactions
+  const tagsGroups = resultPanel.querySelectorAll('.grok-spirit-tags-group');
+  tagsGroups.forEach(group => {
+    initializeTagsGroup(group);
+  });
+
   // Toggle button clicks
   const toggleButtons = resultPanel.querySelectorAll('.grok-spirit-toggle-btn');
   toggleButtons.forEach(btn => {
@@ -1362,15 +1427,224 @@ function handleValueChange(event) {
   // Update field status
   updateFieldStatus(path, originalValue, currentValue);
 
-  // Show/hide undo button
-  const undoBtn = resultPanel.querySelector('.grok-spirit-btn-undo');
-  if (undoBtn) {
-    const hasChanges = Array.from(resultPanel.querySelectorAll('.grok-spirit-value')).some(inp => inp.value !== inp.getAttribute('data-original'));
-    undoBtn.style.display = hasChanges ? 'inline-block' : 'none';
-  }
-
   // Update JSON textarea
   updateJsonFromKeyValue();
+
+  // Refresh undo visibility after value change
+  refreshUndoButtonVisibility();
+}
+
+// Initialize tag chip interactions
+function initializeTagsGroup(group) {
+  const input = group.querySelector('.grok-spirit-tag-input');
+  const addBtn = group.querySelector('.grok-spirit-tag-add-btn');
+
+  if (input) {
+    input.addEventListener('keydown', handleTagInputKeydown);
+  }
+
+  if (addBtn) {
+    addBtn.addEventListener('click', handleTagAdd);
+  }
+
+  group.addEventListener('click', handleTagRemoveClick);
+}
+
+// Handle typing inside the tag input
+function handleTagInputKeydown(event) {
+  const input = event.target;
+  const group = input.closest('.grok-spirit-tags-group');
+  if (!group) return;
+
+  if (event.key === 'Enter' || event.key === ',') {
+    event.preventDefault();
+    const tagsToAdd = extractTagsFromInput(input.value);
+    if (tagsToAdd.length > 0) {
+      addTagsToGroup(group, tagsToAdd);
+    }
+    input.value = '';
+  } else if (event.key === 'Backspace' && input.value === '') {
+    const currentTags = getTagsFromGroup(group);
+    if (currentTags.length > 0) {
+      event.preventDefault();
+      currentTags.pop();
+      updateTagsGroupState(group, currentTags);
+    }
+  }
+}
+
+// Handle add button click
+function handleTagAdd(event) {
+  event.preventDefault();
+  const button = event.currentTarget;
+  const group = button.closest('.grok-spirit-tags-group');
+  if (!group) return;
+
+  const input = group.querySelector('.grok-spirit-tag-input');
+  if (!input) return;
+
+  const tagsToAdd = extractTagsFromInput(input.value);
+  if (tagsToAdd.length > 0) {
+    addTagsToGroup(group, tagsToAdd);
+    input.value = '';
+  }
+  input.focus();
+}
+
+// Handle removing a tag chip
+function handleTagRemoveClick(event) {
+  const removeBtn = event.target.closest('.grok-spirit-tag-remove');
+  if (!removeBtn) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const group = removeBtn.closest('.grok-spirit-tags-group');
+  if (!group) return;
+
+  const chip = removeBtn.closest('.grok-spirit-tag-chip');
+  if (!chip) return;
+
+  const tagToRemove = chip.getAttribute('data-tag') || chip.textContent.trim();
+  const currentTags = getTagsFromGroup(group).filter(tag => tag !== tagToRemove);
+  updateTagsGroupState(group, currentTags);
+}
+
+// Add tags to the group, ensuring uniqueness
+function addTagsToGroup(group, tags) {
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return;
+  }
+
+  const currentTags = getTagsFromGroup(group);
+  const mergedTags = [...currentTags];
+
+  tags.forEach(tag => {
+    const sanitized = sanitizeTag(tag);
+    if (!sanitized) {
+      return;
+    }
+    if (!mergedTags.includes(sanitized)) {
+      mergedTags.push(sanitized);
+    }
+  });
+
+  updateTagsGroupState(group, mergedTags);
+}
+
+// Update group state after changes and sync with JSON/status
+function updateTagsGroupState(group, tags) {
+  if (!group) return;
+
+  const uniqueTags = [];
+  const seen = new Set();
+  tags.forEach(tag => {
+    const sanitized = sanitizeTag(tag);
+    if (!sanitized) {
+      return;
+    }
+    if (!seen.has(sanitized)) {
+      seen.add(sanitized);
+      uniqueTags.push(sanitized);
+    }
+  });
+
+  const previousJson = group.getAttribute('data-current') || '[]';
+  const newJson = JSON.stringify(uniqueTags);
+  if (previousJson === newJson) {
+    refreshUndoButtonVisibility();
+    return;
+  }
+
+  setTagsForGroup(group, uniqueTags);
+  group.setAttribute('data-current', newJson);
+
+  const path = group.getAttribute('data-path');
+  const originalTags = getOriginalTags(group);
+
+  updateFieldStatus(path, originalTags, uniqueTags);
+  updateJsonFromPath(path, uniqueTags);
+  refreshUndoButtonVisibility();
+}
+
+// Normalize the list of chips to match provided tags
+function setTagsForGroup(group, tags) {
+  const wrapper = group.querySelector('.grok-spirit-tags-wrapper');
+  if (!wrapper) return;
+
+  const input = wrapper.querySelector('.grok-spirit-tag-input');
+  if (!input) return;
+
+  wrapper.querySelectorAll('.grok-spirit-tag-chip').forEach(chip => chip.remove());
+
+  tags.forEach(tag => {
+    const chip = createTagChipElement(tag);
+    wrapper.insertBefore(chip, input);
+  });
+}
+
+// Create a single tag chip element
+function createTagChipElement(tag) {
+  const chip = document.createElement('span');
+  chip.className = 'grok-spirit-tag-chip';
+  chip.setAttribute('data-tag', tag);
+  chip.title = 'Click remove to delete tag';
+
+  const label = document.createElement('span');
+  label.className = 'grok-spirit-tag-label';
+  label.textContent = tag;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'grok-spirit-tag-remove';
+  removeBtn.setAttribute('aria-label', `Remove ${tag}`);
+  removeBtn.textContent = '×';
+
+  chip.appendChild(label);
+  chip.appendChild(removeBtn);
+
+  return chip;
+}
+
+// Extract sanitized tags from an input value
+function extractTagsFromInput(rawValue) {
+  if (typeof rawValue !== 'string') {
+    return [];
+  }
+
+  return rawValue
+    .split(',')
+    .map(item => sanitizeTag(item))
+    .filter(tag => tag.length > 0);
+}
+
+// Return the list of current tags based on chips
+function getTagsFromGroup(group) {
+  return Array.from(group.querySelectorAll('.grok-spirit-tag-chip'))
+    .map(chip => chip.getAttribute('data-tag') || '')
+    .map(tag => tag.trim())
+    .filter(tag => tag.length > 0);
+}
+
+// Retrieve the original tags from dataset
+function getOriginalTags(group) {
+  const originalJson = group.getAttribute('data-original') || '[]';
+  try {
+    const parsed = JSON.parse(originalJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Sanitize tag for consistent storage
+function sanitizeTag(tag) {
+  if (typeof tag !== 'string') {
+    return '';
+  }
+  return tag.trim().replace(/\s+/g, ' ');
 }
 
 // Handle toggle button clicks
@@ -1452,7 +1726,21 @@ function updateFieldStatus(path, originalValue, currentValue) {
   const indicator = statusElement.querySelector('.grok-spirit-status-indicator');
   const undoButton = statusElement.querySelector('.grok-spirit-field-undo');
 
-  const hasChanged = originalValue !== currentValue;
+  const normalizeForComparison = (value) => {
+    if (Array.isArray(value) || (value && typeof value === 'object')) {
+      try {
+        return JSON.stringify(value);
+      } catch (e) {
+        return String(value);
+      }
+    }
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value);
+  };
+
+  const hasChanged = normalizeForComparison(originalValue) !== normalizeForComparison(currentValue);
 
   if (hasChanged) {
     indicator.className = 'grok-spirit-status-indicator grok-spirit-status-changed';
@@ -1496,8 +1784,15 @@ function handleFieldUndo(event) {
   const textInput = fieldContainer?.querySelector('.grok-spirit-value');
   const toggleGroup = fieldContainer?.querySelector('.grok-spirit-toggle-group');
   const dropdownGroup = fieldContainer?.querySelector('.grok-spirit-dropdown-group');
+  const tagsGroup = fieldContainer?.querySelector('.grok-spirit-tags-group');
 
-  if (textInput) {
+  if (tagsGroup) {
+    const originalArray = Array.isArray(originalValue) ? originalValue : [];
+    setTagsForGroup(tagsGroup, originalArray);
+    tagsGroup.setAttribute('data-current', JSON.stringify(originalArray));
+    updateFieldStatus(path, originalArray, originalArray);
+    refreshUndoButtonVisibility();
+  } else if (textInput) {
     // Handle tags field specially
     let displayValue = originalValue;
     if (path === 'tags' && Array.isArray(originalValue)) {
@@ -1867,6 +2162,28 @@ function updateJsonFromKeyValue() {
   }
 }
 
+// Re-evaluate whether the global undo button should be visible
+function refreshUndoButtonVisibility() {
+  if (!resultPanel) return;
+
+  const undoBtn = resultPanel.querySelector('.grok-spirit-btn-undo');
+  if (!undoBtn) {
+    return;
+  }
+
+  const hasTextChanges = Array.from(resultPanel.querySelectorAll('.grok-spirit-value'))
+    .some(input => input.value !== input.getAttribute('data-original'));
+
+  const hasTagChanges = Array.from(resultPanel.querySelectorAll('.grok-spirit-tags-group'))
+    .some(group => {
+      const originalTags = getOriginalTags(group);
+      const currentTags = getTagsFromGroup(group);
+      return JSON.stringify(originalTags) !== JSON.stringify(currentTags);
+    });
+
+  undoBtn.style.display = (hasTextChanges || hasTagChanges) ? 'inline-block' : 'none';
+}
+
 // Set nested value in object using dot notation path
 function setNestedValue(obj, path, value) {
   const keys = path.split('.');
@@ -2036,6 +2353,17 @@ function handleUndo() {
     }
 
     input.value = displayValue;
+  });
+
+  // Reset tags groups
+  const tagsGroups = resultPanel.querySelectorAll('.grok-spirit-tags-group');
+  tagsGroups.forEach(group => {
+    const path = group.getAttribute('data-path');
+    const originalTags = getNestedValue(originalData, path);
+    const safeTags = Array.isArray(originalTags) ? originalTags : [];
+
+    setTagsForGroup(group, safeTags);
+    group.setAttribute('data-current', JSON.stringify(safeTags));
   });
 
   // Reset readonly list fields
@@ -2381,6 +2709,102 @@ function addStyles() {
       outline: none;
       border-color: #007bff;
       box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+
+    .grok-spirit-tags-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .grok-spirit-tags-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 4px;
+      min-height: 32px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      background: #ffffff;
+    }
+
+    .grok-spirit-tags-wrapper:focus-within {
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+    }
+
+    .grok-spirit-tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #e9ecef;
+      color: #495057;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .grok-spirit-tag-chip:hover {
+      background: #dee2e6;
+    }
+
+    .grok-spirit-tag-label {
+      white-space: nowrap;
+    }
+
+    .grok-spirit-tag-remove {
+      border: none;
+      background: transparent;
+      color: #6c757d;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 0 2px;
+    }
+
+    .grok-spirit-tag-remove:hover {
+      color: #dc3545;
+    }
+
+    .grok-spirit-tag-input {
+      flex: 1;
+      min-width: 120px;
+      border: none;
+      font-size: 13px;
+      padding: 2px 4px;
+      outline: none;
+      background: transparent;
+    }
+
+    .grok-spirit-tag-input::placeholder {
+      color: #adb5bd;
+    }
+
+    .grok-spirit-tags-actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .grok-spirit-tag-add-btn {
+      align-self: flex-start;
+      padding: 4px 8px;
+      border: 1px solid #ced4da;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+      color: #495057;
+    }
+
+    .grok-spirit-tag-add-btn:hover {
+      background: #f8f9fa;
+      border-color: #007bff;
+      color: #007bff;
     }
 
     .grok-spirit-original-prompt {
