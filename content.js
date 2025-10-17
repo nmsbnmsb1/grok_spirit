@@ -3261,6 +3261,7 @@ function addStyles() {
       .grok-spirit-original-prompt,
       .grok-spirit-custom-input,
       .grok-spirit-dropdown,
+      .grok-spirit-tags-wrapper,
       .grok-spirit-dialogue-character,
       .grok-spirit-dialogue-time,
       .grok-spirit-dialogue-emotion,
@@ -3300,6 +3301,45 @@ function addStyles() {
         background: #222;
         color: #f1f1f1;
         border-color: #444;
+      }
+
+      .grok-spirit-tag-chip {
+        background: #3c3c3c;
+        color: #f1f1f1;
+        border: 1px solid #4a4a4a;
+      }
+
+      .grok-spirit-tag-chip:hover {
+        background: #505050;
+        border-color: #5c5c5c;
+      }
+
+      .grok-spirit-tag-remove {
+        color: #c9c9c9;
+      }
+
+      .grok-spirit-tag-remove:hover {
+        color: #ff6b6b;
+      }
+
+      .grok-spirit-tag-input {
+        color: #f1f1f1;
+      }
+
+      .grok-spirit-tag-input::placeholder {
+        color: #888;
+      }
+
+      .grok-spirit-tag-add-btn {
+        background: #3c3c3c;
+        color: #f1f1f1;
+        border-color: #555;
+      }
+
+      .grok-spirit-tag-add-btn:hover {
+        background: #555;
+        border-color: #777;
+        color: #fff;
       }
 
       .grok-spirit-btn {
