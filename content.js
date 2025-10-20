@@ -3,7 +3,7 @@ console.log('Grok Spirit content script loaded');
 
 // 统一时间格式化函数
 function formatTime(date = new Date()) {
-  return date.toLocaleTimeString(undefined, {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  return date.toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // 本地完整时间（不依赖语言环境），用于下载与持久化显示
@@ -56,7 +56,7 @@ const FIELD_CONFIG = {
   },
   'shot.camera_movement': {
     type: FIELD_TYPES.DROPDOWN,
-    options: ['static shot', 'pan', 'tilt', 'zoom', 'dolly', 'tracking shot','Crane Shot','Orbit', 'Handheld'],
+    options: ['static shot', 'pan', 'tilt', 'zoom', 'dolly', 'tracking shot', 'Crane Shot', 'Orbit', 'Handheld'],
     customKey: 'custom_camera_movement',
     maxSystemParsed: 5
   },
@@ -93,22 +93,29 @@ function initializeWhenReady() {
 initializeWhenReady();
 
 function initializePlugin() {
-  console.log('Initializing Grok Spirit on:', currentUrl);
-
   // Check if this is a grok.com page
-  if (!currentUrl.includes('grok.com/imagine')) {
+  if (!currentUrl.startsWith('https://grok.com')) {
     return;
   }
 
-  // Check URL cache immediately
-  checkUrlCache();
+  console.log('Initializing Grok Spirit on:', currentUrl);
 
-  // Also check cache after a delay in case page is still loading
-  setTimeout(() => {
-    if (!cachedVideoData) {
-      checkUrlCache();
-    }
-  }, 1000);
+  //初始化面板
+  initResultPanel();
+  //如果已在post页，加载数据
+  if (currentUrl.includes('/imagine/post/')) {
+    mountResultPanel();
+
+    // Check URL cache immediately
+    checkUrlCache();
+
+    // Also check cache after a delay in case page is still loading
+    // setTimeout(() => {
+    //   if (!cachedVideoData) {
+    //     checkUrlCache();
+    //   }
+    // }, 1000);
+  }
 
   // Monitor URL changes
   monitorUrlChanges();
@@ -160,13 +167,19 @@ function checkUrlCache() {
       }
 
       console.log(`[${formatTime()}] Loaded cached video data for URL:`, currentUrl, cachedVideoData);
-      showResultPanel();
+      //showResultPanel();
     } catch (e) {
       console.error(`[${formatTime()}] Failed to parse cached data:`, e);
     }
+    processingStatus = null;
   } else {
+    cachedVideoData = null;
+    processingStatus = null;
     console.log(`[${formatTime()}] No cache found for current URL`);
   }
+  //
+  if (!cachedVideoData) cachedVideoData = generateEmptyVideoData()
+  updateResultPanel();
 }
 
 // Monitor URL changes
@@ -180,13 +193,17 @@ function monitorUrlChanges() {
       console.log(`[${formatTime()}] URL changed to:`, currentUrl);
 
       // Hide current panel
-      if (resultPanel) {
-        resultPanel.remove();
-        resultPanel = null;
-      }
+      // if (resultPanel) {
+      //   resultPanel.remove();
+      //   resultPanel = null;
+      // }
 
-      // Check new URL cache
-      checkUrlCache();
+      if (currentUrl.includes('/imagine/post/')) {
+        mountResultPanel();
+
+        // Check new URL cache
+        checkUrlCache();
+      }
     }
   });
 
@@ -196,6 +213,7 @@ function monitorUrlChanges() {
   });
 }
 
+// #region 处理后台消息
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log(`[${formatTime()}] Content script received message:`, request);
@@ -223,7 +241,7 @@ function handleVideoDetected(videoInfo) {
   videoInfo.originalPrompt = originalPrompt;
 
   // Parse system options from original prompt
-  parseSystemOptionsFromPrompt(originalPrompt);
+  // parseSystemOptionsFromPrompt(originalPrompt);
 
   // Save processing start timestamp to videoInfo (only timestamp for persistence)
   if (processingStartTime) {
@@ -233,14 +251,28 @@ function handleVideoDetected(videoInfo) {
     videoInfo.processingStartTs = processingStartTs;
   }
 
+  //把复制要传递的属性到新对象
+  if (cachedVideoData) {
+    // console.log(`[${formatTime()}] cachedVideoData.videoPrompt:`, cachedVideoData.videoPrompt);
+    // console.log(`[${formatTime()}] originalPromptRaw:`, originalPromptRaw);
+    // console.log(`[${formatTime()}] videoInfo.originalPrompt:`, videoInfo.originalPrompt);
+    if (cachedVideoData.locales) {
+      videoInfo.locales = cachedVideoData.locales;
+      console.log(`[${formatTime()}] Merge mulit locales:`, cachedVideoData);
+    }
+    videoInfo.folderNameInputValue = cachedVideoData.folderNameInputValue;
+    cachedVideoData.sequenceNumber++;
+    videoInfo.sequenceNumber = cachedVideoData.sequenceNumber;
+  }
+
   // Use initial URL for caching if available, otherwise use current URL
   const cacheUrl = processingVideoData ? processingVideoData.initialUrl : currentUrl;
   const normalizedUrl = getNormalizedUrl(cacheUrl);
   const urlKey = `grok_video_${normalizedUrl}`;
 
-  console.log(`[${formatTime()}] Caching video data with key:`, urlKey, 'from URL:', cacheUrl);
-  // console.log(`[${formatTime()}] Current URL at detection time:`, currentUrl);
-  // console.log(`[${formatTime()}] ProcessingVideoData:`, processingVideoData);
+  //console.log(`[${formatTime()}] Caching video data with key:`, urlKey, 'from URL:', cacheUrl);
+  //console.log(`[${formatTime()}] Current URL at detection time:`, currentUrl);
+  //console.log(`[${formatTime()}] ProcessingVideoData:`, processingVideoData);
 
   // Ensure originalPrompt is a string before stringifying
   const videoInfoForStorage = { ...videoInfo };
@@ -252,7 +284,7 @@ function handleVideoDetected(videoInfo) {
   localStorage.setItem(urlKey, JSON.stringify(videoInfoForStorage));
 
   // Verify the data was actually stored
-  const storedData = localStorage.getItem(urlKey);
+  // const storedData = localStorage.getItem(urlKey);
   // console.log(`[${formatTime()}] Verification - data stored successfully:`, !!storedData);
   // console.log(`[${formatTime()}] Verification - stored data length:`, storedData ? storedData.length : 0);
 
@@ -263,7 +295,8 @@ function handleVideoDetected(videoInfo) {
   isProcessing = false; // Processing completed, reset state
 
   // Show or update result panel
-  showResultPanel();
+  //showResultPanel();
+  updateResultPanel();
 }
 
 // Parse system options from original prompt
@@ -284,8 +317,8 @@ function parseSystemOptionsFromPrompt(originalPrompt) {
           // 2. Not a user custom option
           // 3. This key doesn't exist in original prompt (system completely independent addition)
           if (!config.options.includes(currentValue) &&
-              !isValueInCustomOptions(config.customKey, currentValue) &&
-              !isKeyInOriginalPrompt(originalPrompt, path)) {
+            !isValueInCustomOptions(config.customKey, currentValue) &&
+            !isKeyInOriginalPrompt(originalPrompt, path)) {
             saveParsedOptions(config.customKey, currentValue, path);
           }
         }
@@ -307,7 +340,7 @@ function parseSystemOptionsFromPrompt(originalPrompt) {
             if (currentValue && typeof currentValue === 'string') {
               // For plain text prompts, all non-preset values are system parsed
               if (!config.options.includes(currentValue) &&
-                  !isValueInCustomOptions(config.customKey, currentValue)) {
+                !isValueInCustomOptions(config.customKey, currentValue)) {
                 saveParsedOptions(config.customKey, currentValue, path);
               }
             }
@@ -448,7 +481,7 @@ function deepEqual(obj1, obj2) {
 
 // Handle video processing status
 function handleVideoProcessing(status, referer) {
-  // console.log(`[${formatTime()}] handleVideoProcessing called with status:`, status, 'referer:', referer);
+  console.log(`[${formatTime()}] handleVideoProcessing called with status:`, status, 'referer:', referer);
 
   processingStatus = status;
 
@@ -466,7 +499,7 @@ function handleVideoProcessing(status, referer) {
         processingVideoData = {
           initialUrl: referer
         };
-        // console.log(`[${formatTime()}] Init processing baseline with referer:`, referer);
+        console.log(`[${formatTime()}] Init processing baseline with referer:`, referer);
       } else if (!processingStartTime) {
         // 仍未建立基准且无 referer，回退当前 URL
         processingStartTime = new Date();
@@ -476,16 +509,29 @@ function handleVideoProcessing(status, referer) {
         };
         console.log(`[${formatTime()}] Init processing baseline with current URL:`, currentUrl);
       }
-      // console.log(`[${formatTime()}] Baseline now:`, processingVideoData);
+      console.log(`[${formatTime()}] Baseline now:`, processingVideoData);
+
+      //重置 cachedVideoData
+      //这个时候是在生成一个新的Video，所有的数据都要重建
+      // let lastVideoData = cachedVideoData;
+      // cachedVideoData = {}
+      // if (lastVideoData) {
+      //   cachedVideoData.locales = lastVideoData.locales;
+      // }
     }
   }
 
   // Update panel if it exists
-  if (resultPanel) {
-    updateProcessingStatus(status);
-  }
+  //if (resultPanel) {
+  //updateProcessingStatus(status);
+  updateProcessingLayer();
+  //}
 }
+// #endregion
 
+
+// #region 原始面板UI
+// #region UI
 // Show result panel
 function showResultPanel(retryCount = 0) {
   // console.log(`[${formatTime()}] showResultPanel invoked`, { retryCount, hasCachedVideoData: !!cachedVideoData });
@@ -798,8 +844,8 @@ function createPanelContent(content = null) {
 
   // Check if same day
   const isSameDay = timeDate.getFullYear() === now.getFullYear() &&
-                   timeDate.getMonth() === now.getMonth() &&
-                   timeDate.getDate() === now.getDate();
+    timeDate.getMonth() === now.getMonth() &&
+    timeDate.getDate() === now.getDate();
 
   // Check if same year
   const isSameYear = timeDate.getFullYear() === now.getFullYear();
@@ -1456,7 +1502,8 @@ function updateProcessingStatus(status) {
     resultPanel.innerHTML = createPanelContent();
   }
 }
-
+// #endregion
+// #region 事件处理器
 // Add event listeners to the panel
 function addPanelEventListeners() {
   if (!resultPanel) return;
@@ -2366,7 +2413,308 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+// #endregion
+// #endregion
 
+
+const statusText = {
+  'processing': 'Processing new video...',
+  'failed': 'Processing failed',
+  'completed': 'Processing completed'
+};
+const statusClass = {
+  'processing': 'status-processing',
+  'failed': 'status-failed',
+  'completed': 'status-completed'
+};
+
+function generateEmptyVideoData() {
+  let data = {}
+  data.folderNameInputValue = 'tmp';
+  data.sequenceNumber = 1;
+  return data;
+}
+function updateLocalStorageField(field, value) {
+  const normalizedUrl = getNormalizedUrl(currentUrl);
+  const urlKey = `grok_video_${normalizedUrl}`;
+  let data = localStorage.getItem(urlKey)
+  if (data) {
+    try {
+      data = JSON.parse(data);
+      data[field] = value;
+      localStorage.setItem(urlKey, JSON.stringify(data));
+    } catch (e) {
+    }
+  } else {
+    localStorage.setItem(urlKey, JSON.stringify({ [field]: value }));
+  }
+}
+
+function initResultPanel() {
+  if (!resultPanel) {
+    console.log(`[${formatTime()}] Init Result Panel`);
+
+    resultPanel = document.createElement('div');
+    resultPanel.id = 'grok-spirit-result-panel';
+    resultPanel.style.cssText = `
+      display: block;
+      width: 100%;
+      margin-top: 4px;
+      margin-bottom: 60px;
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 12px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      clear: both;
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    `;
+    resultPanel.innerHTML = `
+      <div class="grok-spirit-json-controls" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+          <!-- 左侧按钮组 -->
+          <div style="display:flex; gap:6px;">
+            <button class="grok-spirit-btn grok-spirit-btn-clipboard" title="Copy from clipboard">📥 Clipboard</button>
+          </div>
+          <!-- 右侧状态 + 按钮 -->
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="grok-spirit-status">
+            </span>
+            <button class="grok-spirit-btn grok-spirit-btn-download" title="Download">💾 Download</button>
+          </div>
+        </div>
+        <!-- 第二行输入组 -->
+        <div class="grok-spirit-input-group" style="display:flex; align-items:center; gap:6px; width:100%;">
+          <input id="grok-spirit-folder-input" type="text" placeholder="文件夹名" style="flex:1; min-width:120px; padding:4px 8px; border:1px solid #ced4da; border-radius:6px; font-size:12px;" />
+          <input id="grok-spirit-sequence-input" type="text" placeholder="序号" style="width:80px; padding:4px 8px; border:1px solid #ced4da; border-radius:6px; font-size:12px; text-align:center;" />
+        </div>
+      </div>
+      <textarea id="grok-spirit-json-text-en" class="grok-spirit-json-text" readonly style="resize:none;height:600px"></textarea>
+    `;
+
+    // JSON editor buttons
+    const clipboardBtn = resultPanel.querySelector('.grok-spirit-btn-clipboard');
+    if (clipboardBtn) {
+      clipboardBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        handleClipboardCopy();
+      });
+    }
+
+    const downloadBtn = resultPanel.querySelector('.grok-spirit-btn-download');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        handleDownloadAll();
+      });
+    }
+
+    const folderInput = resultPanel.querySelector('#grok-spirit-folder-input');
+    if (folderInput) {
+      folderInput.addEventListener('blur', (event) => {
+        cachedVideoData.folderNameInputValue = event.target.value;
+        //实时更新缓存中的值
+        updateLocalStorageField('folderNameInputValue', cachedVideoData.folderNameInputValue);
+      });
+    }
+
+    const sequenceInput = resultPanel.querySelector('#grok-spirit-sequence-input');
+    if (sequenceInput) {
+      sequenceInput.addEventListener('blur', (event) => {
+        let sequenceNumber = parseInt(event.target.value, 10);
+        if (!isNaN(sequenceNumber)) {
+          cachedVideoData.sequenceNumber = sequenceNumber;
+          //实时更新缓存中的值
+          updateLocalStorageField('sequenceNumber', cachedVideoData.sequenceNumber);
+        }
+      });
+    }
+  }
+  return resultPanel;
+}
+
+function mountResultPanel() {
+  let container;
+  const ensurePromptLayer = (cb, retryCount = 0) => {
+    container = findOperationContainer()
+    if (!container || !findPromptLayer()) {
+      if (retryCount < 5) {
+        setTimeout(() => ensurePromptLayer(cb, retryCount + 1), 500 * (retryCount + 1))
+      } else {
+        throw new Error('Cannot find promptLayer')
+      }
+    } else {
+      cb()
+    }
+  }
+
+  ensurePromptLayer(() => {
+    container.parentNode.insertBefore(resultPanel, container.nextSibling);
+  })
+}
+
+function findOperationContainer() {
+  return document.querySelector('.flex.justify-between.gap-5');
+}
+
+function findPromptLayer() {
+  return findOperationContainer()?.querySelector('.flex.justify-end.relative.w-full')
+}
+
+function findPromptInput() {
+  return findPromptLayer()?.querySelector('textarea[aria-required="true"]')
+}
+
+// 设置ResultPanel的数据
+function updateResultPanel(options = {}) {
+  //更新status
+  updateProcessingLayer();
+  // if (processingStatus === 'completed') {
+  //   setTimeout(() => {
+  //     statusContainer.className = `grok-spirit-status`;
+  //     statusContainer.textContent = ``;
+  //   }, 2000)
+  // }
+
+  let videoPrompt = cachedVideoData.videoPrompt || '';
+  if (videoPrompt) {
+    try {
+      //重新格式化
+      videoPrompt = JSON.stringify(JSON.parse(videoPrompt), null, 2);
+    } catch (e) { }
+  }
+
+  const spicyBtn = resultPanel.querySelector('.grok-spirit-btn-spicy');
+  if (spicyBtn) {
+    spicyBtn.classList.remove('active');
+    if (videoPrompt.includes(SPICY_MODE)) {
+      spicyBtn.classList.add('active');
+    }
+  }
+
+  const enTextarea = resultPanel.querySelector('#grok-spirit-json-text-en');
+  enTextarea.value = enTextarea.textContent = videoPrompt || '';
+
+  // const promptInput = findPromptInput();
+  // if (promptInput && enTextarea.value) {
+  //   promptInput.value = promptInput.textContent = enTextarea.value;
+  //   promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+  // }
+
+  const folderInput = resultPanel.querySelector('#grok-spirit-folder-input');
+  if (folderInput) {
+    folderInput.value = folderInput.textContent = cachedVideoData.folderNameInputValue;
+  }
+
+  const sequenceInput = resultPanel.querySelector('#grok-spirit-sequence-input');
+  if (sequenceInput) {
+    sequenceInput.value = sequenceInput.textContent = `${cachedVideoData.sequenceNumber}`;
+  }
+}
+function updateProcessingLayer() {
+  const statusContainer = resultPanel.querySelector('.grok-spirit-status');
+  statusContainer.className = `grok-spirit-status ${statusClass[processingStatus]}`;
+  statusContainer.textContent = `${statusText[processingStatus] || ''}`
+}
+
+//处理剪切板
+async function handleClipboardCopy() {
+  if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+    console.warn('Clipboard API is not available in this context.');
+    return null;
+  }
+
+  try {
+    const clipboardText = await navigator.clipboard.readText();
+    const trimmedText = clipboardText.trim();
+    if (!trimmedText) {
+      console.warn('Clipboard is empty or contains only whitespace.');
+      return null;
+    }
+
+    //重置
+    cachedVideoData.videoPrompt = '';
+    delete cachedVideoData.locales;
+
+    //处理粘贴的数据
+    let clipboardData;
+    try {
+      clipboardData = JSON.parse(trimmedText);
+    } catch (e) { }
+
+    //粘贴的是文本
+    if (!clipboardData) {
+      clipboardData = cachedVideoData.videoPrompt = trimmedText;
+      console.log('Paste plain Text:', trimmedText);
+    } else if (clipboardData.en) {
+      //如果是多语言
+      cachedVideoData.videoPrompt = JSON.stringify(clipboardData.en);
+      delete clipboardData.en;
+      cachedVideoData.locales = { ...clipboardData }
+      console.log('Paste multi locale JSON:', cachedVideoData.videoPrompt);
+      console.log('Locales:', cachedVideoData.locales);
+    } else {
+      cachedVideoData.videoPrompt = JSON.stringify(clipboardData);
+      console.log('Paste JSON:', cachedVideoData.videoPrompt);
+    }
+
+    updateResultPanel();
+    //
+    const promptInput = findPromptInput();
+    if (promptInput) {
+      promptInput.value = promptInput.textContent = cachedVideoData.videoPrompt || '';
+      promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    console.log('Clipboard JSON merged successfully.');
+  } catch (error) {
+    console.error('Failed to read clipboard content:', error);
+  }
+}
+
+function handleDownloadAll() {
+  if (!cachedVideoData || !cachedVideoData.videoUrl) {
+    console.error('No video URL available for download');
+    return;
+  }
+
+  let structuredData;
+  try { structuredData = JSON.parse(cachedVideoData.videoPrompt); } catch (e) { }
+  if (!structuredData) {
+    structuredData = cachedVideoData.videoPrompt;
+  } else if (cachedVideoData.locales) {
+    structuredData = { en: { ...structuredData }, ...cachedVideoData.locales }
+  }
+
+  const payload = {
+    action: 'downloadVideo',
+    videoInfo: {
+      videoId: cachedVideoData.videoId,
+      videoUrl: cachedVideoData.videoUrl,
+      videoPrompt: cachedVideoData.videoPrompt,
+      originalPrompt: cachedVideoData.originalPrompt || null,
+      progress: cachedVideoData.progress,
+      pageUrl: currentUrl,
+      structuredData: structuredData,
+      folderSequence: `${cachedVideoData.folderNameInputValue ? `${cachedVideoData.folderNameInputValue}/` : ``}${`${cachedVideoData.sequenceNumber}`.padStart(3, '0')}`
+    }
+  };
+
+  chrome.runtime.sendMessage(payload, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error('Background message failed:', chrome.runtime.lastError);
+      return;
+    }
+    if (!response || !response.success) {
+      console.error('Background download failed:', response && response.error);
+      return;
+    }
+  });
+}
+
+// #region 样式
 // Add CSS styles
 function addStyles() {
   const style = document.createElement('style');
@@ -2637,6 +2985,45 @@ function addStyles() {
     .grok-spirit-btn:hover {
       opacity: 0.8;
       border-color: #007bff;
+    }
+
+    .grok-spirit-btn-clipboard {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .grok-spirit-btn-clipboard:hover {
+      background: #0069d9;
+      border-color: #0056b3;
+    }
+
+    .grok-spirit-btn-spicy {
+      background: #f8a488;
+      color: white;
+      border-color: #e76f51;
+    }
+
+    .grok-spirit-btn-spicy:hover {
+      background: #f4a261;
+      border-color: #f4a261;
+    }
+
+    .grok-spirit-btn-spicy.active {
+      background: #d04a27;
+      border-color: #d04a27;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .grok-spirit-btn-remove-locales {
+      background: #ff4d4f;
+      color: white;
+      border-color: #ff4d4f;
+    }
+
+    .grok-spirit-btn-remove-locales:hover {
+      background: #e04345;
+      border-color: #d03b3d;
     }
 
     .grok-spirit-btn-fill {
@@ -2992,6 +3379,131 @@ function addStyles() {
       background: #218838;
     }
 
+    @media (prefers-color-scheme: dark) {
+      #grok-spirit-result-panel {
+        background: #2d2d2d !important;
+        border-color: #444 !important;
+        color: #f1f1f1 !important;
+      }
+
+      .grok-spirit-name,
+      .grok-spirit-section-title,
+      .grok-spirit-key,
+      .grok-spirit-dialogue-field label,
+      .grok-spirit-json-header h4 {
+        color: #f1f1f1;
+      }
+
+      .grok-spirit-time,
+      .grok-spirit-toggle {
+        color: #aaa;
+      }
+
+      .grok-spirit-section,
+      .grok-spirit-dialogue-item,
+      .grok-spirit-readonly-list-item {
+        border-color: #444;
+      }
+
+      .grok-spirit-section-header {
+        background: #3c3c3c;
+        border-bottom-color: #444;
+      }
+
+      .grok-spirit-section-header:hover {
+        background: #555;
+      }
+
+      .grok-spirit-section-content,
+      .grok-spirit-value,
+      .grok-spirit-original-prompt,
+      .grok-spirit-custom-input,
+      .grok-spirit-dropdown,
+      .grok-spirit-dialogue-character,
+      .grok-spirit-dialogue-time,
+      .grok-spirit-dialogue-emotion,
+      .grok-spirit-dialogue-accent,
+      .grok-spirit-dialogue-language,
+      .grok-spirit-dialogue-type,
+      .grok-spirit-dialogue-content,
+      .grok-spirit-readonly-list-content-text,
+      .grok-spirit-field-undo,
+      .grok-spirit-toggle-btn {
+        background: #222;
+        color: #f1f1f1;
+        border-color: #444;
+      }
+      
+      .grok-spirit-value:focus,
+      .grok-spirit-readonly-list-content-text:focus,
+      .grok-spirit-custom-input:focus,
+      .grok-spirit-dialogue-character:focus,
+      .grok-spirit-dialogue-time:focus,
+      .grok-spirit-dialogue-emotion:focus,
+      .grok-spirit-dialogue-accent:focus,
+      .grok-spirit-dialogue-language:focus,
+      .grok-spirit-dialogue-content:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25);
+      }
+
+      .grok-spirit-json,
+      .grok-spirit-dialogue-item,
+      .grok-spirit-readonly-list-item {
+        border-top-color: #444;
+        background: #3c3c3c;
+      }
+
+      .grok-spirit-json-text {
+        background: #222;
+        color: #f1f1f1;
+        border-color: #444;
+      }
+
+      .grok-spirit-btn {
+        background: #3c3c3c;
+        color: #f1f1f1;
+        border-color: #555;
+      }
+
+      .grok-spirit-btn:hover {
+        background: #555;
+        border-color: #777;
+      }
+      
+      .grok-spirit-toggle-btn:hover {
+        background: #555;
+      }
+
+      .grok-spirit-toggle-btn.active {
+        background: #58a6ff;
+        color: #fff;
+        border-color: #58a6ff;
+      }
+
+      .grok-spirit-scrollable::-webkit-scrollbar-track {
+        background: #2d2d2d;
+      }
+
+      .grok-spirit-scrollable::-webkit-scrollbar-thumb {
+        background: #555;
+      }
+
+      .grok-spirit-scrollable::-webkit-scrollbar-thumb:hover {
+        background: #777;
+      }
+      
+      .grok-spirit-dropdown optgroup {
+        background: #2d2d2d;
+        color: #f1f1f1;
+      }
+
+      .grok-spirit-no-dialogue,
+      .grok-spirit-no-readonly-list {
+        background: #2d2d2d;
+        color: #aaa;
+      }
+    }
     /* Theme sync: set color-scheme and adjust borders for better visibility */
     #grok-spirit-result-panel[data-theme="light"] {
       color-scheme: light;
@@ -3002,6 +3514,7 @@ function addStyles() {
     }
 
     /* Dark theme: soften borders to match dark background */
+    /*
     #grok-spirit-result-panel[data-theme="dark"] .grok-spirit-section,
     #grok-spirit-result-panel[data-theme="dark"] .grok-spirit-section-header,
     #grok-spirit-result-panel[data-theme="dark"] .grok-spirit-dialogue-item,
@@ -3029,6 +3542,7 @@ function addStyles() {
     #grok-spirit-result-panel[data-theme="dark"] .grok-spirit-field-undo {
       border-color: rgba(255, 255, 255, 0.15);
     }
+    */
 
   `;
 
@@ -3037,6 +3551,8 @@ function addStyles() {
 
 // Initialize styles
 addStyles();
+
+// #endregion
 
 // ============ Theme Detection & Sync Logic ============
 function detectGrokTheme() {
@@ -3062,11 +3578,11 @@ function setupThemeObserver() {
   });
 }
 
-setupThemeObserver();
+//setupThemeObserver();
 
 // Hook panel creation to apply theme
 const originalCreateResultPanel = createResultPanel;
-createResultPanel = function(...args) {
+createResultPanel = function (...args) {
   const panel = originalCreateResultPanel.apply(this, args);
   panel.setAttribute('data-theme', detectGrokTheme());
   return panel;

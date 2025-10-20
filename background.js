@@ -3,7 +3,7 @@ console.log('Grok Spirit background script started');
 
 // 统一时间格式化函数
 function formatTime(date = new Date()) {
-  return date.toLocaleTimeString(undefined, {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  return date.toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // 本地完整时间（YYYY/MM/DD HH:mm:ss），与前端一致
@@ -393,6 +393,7 @@ async function downloadVideoWithMeta(videoInfo) {
     const absoluteVideoUrl = relativeVideoPath.startsWith('http')
       ? relativeVideoPath
       : `https://assets.grok.com/${relativeVideoPath}?cache=1`;
+    const folderSequence = videoInfo.folderSequence;
 
     // 1) Download metadata JSON first (consistent with frontend "Download JSON" structure, named with Video ID)
     const downloadData = {
@@ -411,14 +412,16 @@ async function downloadVideoWithMeta(videoInfo) {
     const metaDataStr = JSON.stringify(downloadData, null, 2);
     const metaUrl = `data:application/json;charset=utf-8,${encodeURIComponent(metaDataStr)}`;
 
-    pendingFilenames[metaUrl] = `grok_video_${videoId}.json`;
-    desiredFilenameQueue.push(`grok_video_${videoId}.json`);
-    await chrome.downloads.download({ url: metaUrl, filename: `grok_video_${videoId}.json`, saveAs: false });
+    const jsonFileName = folderSequence ? `${folderSequence}.json` : `grok_video_${videoId}.json`;
+    pendingFilenames[metaUrl] = jsonFileName;
+    desiredFilenameQueue.push(jsonFileName);
+    await chrome.downloads.download({ url: metaUrl, filename: jsonFileName, saveAs: false });
 
     // 2) Download video file, ensure custom filename
-    pendingFilenames[absoluteVideoUrl] = `grok_video_${videoId}.mp4`;
-    desiredFilenameQueue.push(`grok_video_${videoId}.mp4`);
-    await chrome.downloads.download({ url: absoluteVideoUrl, filename: `grok_video_${videoId}.mp4`, saveAs: false });
+    const mp4FileName = folderSequence ? `${folderSequence}.mp4` : `grok_video_${videoId}.mp4`;
+    pendingFilenames[absoluteVideoUrl] = mp4FileName;
+    desiredFilenameQueue.push(mp4FileName);
+    await chrome.downloads.download({ url: absoluteVideoUrl, filename: mp4FileName, saveAs: false });
   } catch (error) {
     console.error('Download failed:', error);
   }
