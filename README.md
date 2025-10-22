@@ -28,6 +28,8 @@
 - ⚙️ **Direct Editing** - Edit parameters directly in the interface
 - 💾 **Video Download** - Download videos with matching metadata
 - 🔧 **Preset Support** - Support for both custom and preset prompts
+- 🌙 **Dark Mode Support** - Automatically syncs with Grok's theme (light/dark)
+- 🎬 **Metadata Processing** - Python tool for batch video metadata embedding
 
 ## 🚀 Quick Start
 
@@ -74,12 +76,52 @@ Click the button below to install directly from Chrome Web Store:
    - Save and reuse your favorite parameter combinations
    - Build a personal library of effective prompt structures
 
+4. **🌙 Theme Support**
+   - Automatically detects and syncs with Grok's current theme
+   - Seamless experience in both light and dark modes
+   - All UI elements adapt to maintain readability and visual consistency
+
 ### Advanced Features
 
 - **🎯 Preset Support**: Works with both custom prompts and official preset parameters
 - **🔄 Real-time Injection**: Modify parameters without regenerating from scratch
 - **📊 Structure Analysis**: Understand how Grok processes your prompts internally
 - **🎨 Meta Prompting**: Use discovered structures as templates for new creations
+
+## 🎬 Video Metadata Processing
+
+For users who download multiple videos, I provide a Python tool for batch processing:
+
+### What it does
+- **Metadata Embedding**: Embeds JSON metadata into MP4 files using FFmpeg
+- **Smart Renaming**: Automatically organizes files by prompt groups and versions
+- **Batch Processing**: Process entire directories of downloaded videos at once
+
+### Quick Setup
+1. **Prerequisites**: Python 3.10+, FFmpeg
+2. **Installation**:
+   ```bash
+   cd grok_video_processor
+   pip install -r requirements.txt
+   ```
+3. **Usage**:
+   ```bash
+   python meta_video.py
+   ```
+
+### File Organization
+The tool automatically organizes your downloaded videos:
+- Groups videos by similar prompts
+- Assigns priority numbers (P1, P2, etc.)
+- Adds version numbers within groups (v1, v2, etc.)
+- Final format: `grok_video_[uuid]_P1_v1.mp4`
+
+### Language Note
+⚠️ **Important**: The Python script (`meta_video.py`) currently uses Chinese prompts and messages. This is a personal tool primarily designed for Chinese users.
+
+**Feel free to edit** the script to translate prompts to your preferred language, or create your own localized version. The core functionality is language-independent and will work regardless of the prompt language.
+
+**📖 Detailed documentation**: See [`grok_video_processor/README.md`](grok_video_processor/README.md) for complete setup and usage instructions.
 
 ## 🤝 Contributing
 
@@ -101,7 +143,8 @@ Thanks to the following open source projects and developers for inspiration and 
 
 - [Grok](https://grok.com/) - Provides a powerful AI image generation platform
 - Chrome Extension Development Community - Provides rich resources and guidance for extension development
+- [@nmsbnmsb1](https://github.com/nmsbnmsb1) - Initial dark mode implementation ideas and contributions
 
 ## 📈 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=OtokoNoIzumi/grok-spirit&type=Date)](https://star-history.com/#OtokoNoIzumi/grok-spirit&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=OtokoNoIzumi/grok_spirit&type=Date)](https://star-history.com/#OtokoNoIzumi/grok_spirit&Date)
