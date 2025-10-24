@@ -2,3 +2,6 @@
 video_prompt_templates.json
 Project_grok_spirit.zip
 grok_video_processor/config.toml
+docs
+runtime
+.DS_Store
