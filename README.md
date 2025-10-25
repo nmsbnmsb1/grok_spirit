@@ -24,22 +24,31 @@
 
 ## ✨ Features
 
-- 🎯 **Complete Structure View** - View complete Grok Imagen prompt structure
-- ⚙️ **Direct Editing** - Edit parameters directly in the interface
-- 💾 **Video Download** - Download videos with matching metadata
-- 🔧 **Preset Support** - Support for both custom and preset prompts
-- 🌙 **Dark Mode Support** - Automatically syncs with Grok's theme (light/dark)
-- 🎬 **Metadata Processing** - Python tool for batch video metadata embedding
+- 🔎 **Prompt Capture** - Automatically records the exact JSON Grok uses for every finished video
+- 📋 **Clipboard Injection** - One click pulls JSON/text from your clipboard and fills Grok’s textarea for quick tweaks
+- 🗂️ **Folder & Sequence Naming** - Configure the target folder and 3‑digit sequence so downloads stay organized
+- 💾 **One-click Download** - Download the MP4 and metadata JSON together using the naming rules you set
+- ♻️ **Local Caching** - Each `/imagine/post/...` page keeps its latest prompt/status so you can revisit it later
+
+## 🪶 Minimal Version Overview
+
+The build contained in this repository is the “lite” Grok Spirit panel.  
+Instead of the earlier multi-pane editor, the minimal version focuses on reliability and two core workflows:
+
+1. **Inspect prompts**: When a Grok video finishes, the panel shows the captured JSON (read-only) plus status/time metadata.
+2. **Replay prompts**: Edit JSON in your own editor, copy it, then press **Clipboard** inside Grok Spirit—your changes instantly land in Grok’s textarea and are ready to render.
+
+This streamlined panel also exposes two text fields (folder + sequence). They decide where the extension stores the downloaded MP4/JSON pair, producing paths such as `Grok/my-project/007.mp4` and `Grok/my-project/007.json`.
 
 ## 🚀 Quick Start
 
-### Chrome Web Store Installation (Recommended)
+### Chrome Web Store Installation (Mainline Build)
 
-Click the button below to install directly from Chrome Web Store:
+> The Chrome Web Store hosts the classic/mainline Grok Spirit release. The lite build in this repo is **not** published there, but you can still install the official version from the store if you prefer.
 
-[Chrome Web Store Installation](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako)
+[Install mainline release](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako)
 
-### Local Installation
+### Local Installation (Lite Build)
 
 1. **Download Project**
    ```bash
@@ -53,40 +62,24 @@ Click the button below to install directly from Chrome Web Store:
    - Click "Load unpacked extension"
    - Select the project directory
 
-3. **Start Using**
+3. **Start Using (Manual Load Required)**
    - Visit grok.com/imagine
-   - The extension will automatically activate and show parameter editing interface
+   - The extension will automatically activate and show the Grok Spirit prompt panel
 
 ## 📖 Usage Guide
 
-### Basic Operations
+### Minimal Workflow
 
-1. **🔍 Parameter Discovery**
-   - Visit grok.com/imagine and generate a video
-   - The extension automatically captures and displays the complete prompt structure used for generation
-   - View detailed parameters including camera settings, lighting, motion, and scene composition
+1. **Generate a video** on `grok.com/imagine`. When the request finishes, Grok Spirit captures the JSON and shows it in the panel.
+2. **Review the data** inside the read-only textarea. The status chip reflects whether the latest request is processing, failed, or complete.
+3. **Edit externally if needed**. Copy the JSON into your favorite editor, make changes, copy it back, then hit **Clipboard** to push it into Grok’s textarea automatically.
+4. **Set download naming**. Fill in `Folder` (e.g., `demo-run`) and `Sequence` (e.g., `7`). The extension will persist these per video page.
+5. **Click Download**. Both the MP4 and metadata JSON will be saved under `Grok/<Folder>/<Sequence>.{mp4,json}` (HD is requested automatically when possible).
 
-2. **✏️ Parameter Editing**
-   - Modify any parameter value directly in the interface
-   - Experiment with different camera angles, lighting conditions, and motion settings
-   - Changes are applied in real-time for immediate testing
+### Clipboard Tips
 
-3. **💾 Content Management**
-   - Download generated videos with matching metadata filenames
-   - Save and reuse your favorite parameter combinations
-   - Build a personal library of effective prompt structures
-
-4. **🌙 Theme Support**
-   - Automatically detects and syncs with Grok's current theme
-   - Seamless experience in both light and dark modes
-   - All UI elements adapt to maintain readability and visual consistency
-
-### Advanced Features
-
-- **🎯 Preset Support**: Works with both custom prompts and official preset parameters
-- **🔄 Real-time Injection**: Modify parameters without regenerating from scratch
-- **📊 Structure Analysis**: Understand how Grok processes your prompts internally
-- **🎨 Meta Prompting**: Use discovered structures as templates for new creations
+- The button accepts plain text, structured JSON, or multi-locale JSON (the `en` branch is injected into Grok).
+- After filling, Grok’s native UI treats the text as if you typed/pasted it, so you can immediately press “Generate”.
 
 ## 🎬 Video Metadata Processing
 
