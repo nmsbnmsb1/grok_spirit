@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Grok Spirit",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "View and edit Grok Imagen prompt parameters. See what prompts generated your videos and modify them.",
   "permissions": [
     "debugger",
@@ -10,8 +10,7 @@
   ],
   "host_permissions": [
     "https://grok.com/*",
-    "https://assets.grok.com/*",
-    "https://otokonoizumi.github.io/*"
+    "https://assets.grok.com/*"
   ],
   "background": {
     "service_worker": "background.js"

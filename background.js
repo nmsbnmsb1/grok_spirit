@@ -20,8 +20,8 @@ function formatFullDateTime(date = new Date()) {
 
 let attachedTabs = {};
 const targetUrl = "https://grok.com/rest/app-chat/conversations/new";
-const pendingFilenames = {}; // url -> desired filename
-const desiredFilenameQueue = []; // fallback queue if URL changes after redirect
+//const pendingFilenames = {}; // url -> desired filename
+//const desiredFilenameQueue = []; // fallback queue if URL changes after redirect
 const videoProcessingTabs = {}; // tabId -> { isProcessing: boolean, completed: boolean }
 
 // Plugin installation handler
@@ -108,26 +108,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 // Ensure final filename via onDeterminingFilename
-chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
-  try {
-    const desired = pendingFilenames[downloadItem.url];
-    if (desired) {
-      delete pendingFilenames[downloadItem.url];
-      suggest({ filename: desired, conflictAction: 'uniquify' });
-      return;
-    }
-    if (desiredFilenameQueue.length > 0) {
-      const fallback = desiredFilenameQueue.shift();
-      if (fallback && typeof fallback === 'string') {
-        suggest({ filename: fallback, conflictAction: 'uniquify' });
-        return;
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-  suggest();
-});
+// chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+//   if (downloadItem.byExtensionName === "Grok Spirit") {
+//     try {
+//       const desired = pendingFilenames[downloadItem.url];
+//       if (desired) {
+//         delete pendingFilenames[downloadItem.url];
+//         suggest({ filename: desired, conflictAction: 'uniquify' });
+//         return;
+//       }
+//       if (desiredFilenameQueue.length > 0) {
+//         const fallback = desiredFilenameQueue.shift();
+//         if (fallback && typeof fallback === 'string') {
+//           suggest({ filename: fallback, conflictAction: 'uniquify' });
+//           return;
+//         }
+//       }
+//     } catch (e) {
+//       // ignore
+//     }
+//   }
+//   suggest();
+// });
 
 
 // Attach debugger to tab
@@ -222,6 +224,25 @@ chrome.debugger.onDetach.addListener((source, reason) => {
 
 // Debugger event listener
 chrome.debugger.onEvent.addListener((source, method, params) => {
+  // if (method === 'Network.responseReceived') {
+  //   if (params.response?.url?.endsWith?.('/rest/media/post/get')) {
+  //     const { requestId } = params;
+  //     //console.log("Response info:", response);
+
+  //     // 请求响应完成后再去取 body
+  //     chrome.debugger.sendCommand(source, "Network.getResponseBody", { requestId }, (result) => {
+  //       if (chrome.runtime.lastError) {
+  //         //console.error("Error getting response body:", chrome.runtime.lastError.message);
+  //         return;
+  //       }
+  //       try {
+  //         let post = JSON.parse(result.body)?.post;
+  //         let newPost = { id: post.id, firstPost: post.childPosts?.[0] }
+  //         console.log("Response body:", newPost);
+  //       } catch (e) { }
+  //     });
+  //   }
+  // }
   // Detect video generation request
   if (method === "Network.requestWillBeSent") {
     const request = params.request;
@@ -242,17 +263,18 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
           if (requestBody.toolOverrides && requestBody.toolOverrides.videoGen === true) {
             console.log(`[${formatTime()}] Video generation request detected!`);
 
-            // Mark this tab as processing video
-            videoProcessingTabs[source.tabId] = {
-              isProcessing: true,
-              completed: false
-            };
-
             // Get referer from request headers
             console.log(`[${formatTime()}] Request headers:`, request.headers);
             const referer = request.headers.Referer || request.headers.referer;
             console.log(`[${formatTime()}] Tab ${source.tabId} started video processing`);
             console.log(`[${formatTime()}] Tab ${source.tabId} referer:`, referer);
+
+            // Mark this tab as processing video
+            videoProcessingTabs[source.tabId] = {
+              isProcessing: true,
+              completed: false,
+              referer: referer
+            };
 
             chrome.tabs.sendMessage(source.tabId, {
               action: 'videoProcessing',
@@ -305,6 +327,7 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
               chrome.tabs.sendMessage(source.tabId, {
                 action: 'videoProcessing',
                 status: 'failed',
+                referer: videoProcessingTabs[source.tabId].referer,
                 error: {
                   code: data.error.code,
                   message: data.error.message
@@ -354,6 +377,7 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
                   // Send enhanced video info to content script for UI display
                   chrome.tabs.sendMessage(source.tabId, {
                     action: 'videoDetected',
+                    referer: videoProcessingTabs[source.tabId].referer,
                     videoInfo: enhancedVideoInfo
                   }).catch(err => console.log('Failed to send message to content script:', err));
                 } else {
@@ -366,7 +390,8 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
 
                   chrome.tabs.sendMessage(source.tabId, {
                     action: 'videoProcessing',
-                    status: 'failed'
+                    status: 'failed',
+                    referer: videoProcessingTabs[source.tabId].referer,
                   }).catch(err => console.log('Failed to send failed status:', err));
                 }
               }
@@ -385,15 +410,106 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
   }
 });
 
+// Construct HD video URL from normal video URL
+function constructHdUrl(videoUrl) {
+  if (!videoUrl) return null;
+
+  // Handle both relative and absolute URLs
+  if (videoUrl.startsWith('http')) {
+    // Absolute URL: replace .mp4 with _hd.mp4
+    return videoUrl.replace('.mp4', '_hd.mp4');
+  } else {
+    // Relative URL: add _hd before .mp4
+    return videoUrl.replace('.mp4', '_hd.mp4');
+  }
+}
+
+// Check if URL exists using HEAD request
+async function checkUrlExists(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch (error) {
+    console.log('URL check failed:', error);
+    return false;
+  }
+}
+
+// Request HD video generation via POST
+async function requestHdGeneration(videoId) {
+  try {
+    const payload = { videoId: videoId };
+    console.log('Sending HD generation request with payload:', JSON.stringify(payload));
+
+    const response = await fetch('https://grok.com/rest/media/video/upscale', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.hdMediaUrl || null;
+    } else {
+      console.log('HD generation request failed:', response.status, response.statusText);
+      return null;
+    }
+  } catch (error) {
+    console.log('HD generation request error:', error);
+    return null;
+  }
+}
+
 // Download video with metadata
 async function downloadVideoWithMeta(videoInfo) {
   try {
     const videoId = videoInfo.videoId;
     const relativeVideoPath = videoInfo.videoUrl || '';
-    const absoluteVideoUrl = relativeVideoPath.startsWith('http')
+    const normalVideoUrl = relativeVideoPath.startsWith('http')
       ? relativeVideoPath
       : `https://assets.grok.com/${relativeVideoPath}?cache=1`;
     const folderSequence = videoInfo.folderSequence;
+
+    let finalVideoUrl = null;
+    let isHd = false;
+    let videoQuality = 'normal';
+
+    // Step 1: Try to download HD version directly (check if HD URL exists)
+    const hdUrl = constructHdUrl(normalVideoUrl);
+    if (hdUrl) {
+      console.log('Checking if HD video exists:', hdUrl);
+      const hdExists = await checkUrlExists(hdUrl);
+
+      if (hdExists) {
+        finalVideoUrl = hdUrl;
+        isHd = true;
+        videoQuality = 'hd';
+        console.log('HD video found, will download HD version');
+      }
+    }
+
+    // Step 2: If HD doesn't exist, try to trigger HD generation
+    if (!finalVideoUrl) {
+      console.log('HD video not found, attempting to trigger HD generation...');
+      const hdGeneratedUrl = await requestHdGeneration(videoId);
+
+      if (hdGeneratedUrl) {
+        finalVideoUrl = hdGeneratedUrl;
+        isHd = true;
+        videoQuality = 'hd';
+        console.log('HD video generation successful, will download HD version');
+      }
+    }
+
+    // Step 3: Fallback to normal version
+    if (!finalVideoUrl) {
+      finalVideoUrl = normalVideoUrl;
+      isHd = false;
+      videoQuality = 'normal';
+      console.log('Using normal video version');
+    }
 
     // 1) Download metadata JSON first (consistent with frontend "Download JSON" structure, named with Video ID)
     const downloadData = {
@@ -404,7 +520,9 @@ async function downloadVideoWithMeta(videoInfo) {
         progress: videoInfo.progress,
         download_time: formatFullDateTime(new Date()),
         url: videoInfo.pageUrl,
-        video_url: relativeVideoPath
+        video_url: relativeVideoPath,
+        video_quality: videoQuality,
+        is_hd: isHd
       }
     };
 
@@ -412,16 +530,18 @@ async function downloadVideoWithMeta(videoInfo) {
     const metaDataStr = JSON.stringify(downloadData, null, 2);
     const metaUrl = `data:application/json;charset=utf-8,${encodeURIComponent(metaDataStr)}`;
 
-    const jsonFileName = folderSequence ? `${folderSequence}.json` : `grok_video_${videoId}.json`;
-    pendingFilenames[metaUrl] = jsonFileName;
-    desiredFilenameQueue.push(jsonFileName);
+    const jsonFileName = folderSequence ? `Grok/${folderSequence}.json` : `grok_video_${videoId}.json`;
+    // pendingFilenames[metaUrl] = jsonFileName;
+    // desiredFilenameQueue.push(jsonFileName);
     await chrome.downloads.download({ url: metaUrl, filename: jsonFileName, saveAs: false });
 
-    // 2) Download video file, ensure custom filename
-    const mp4FileName = folderSequence ? `${folderSequence}.mp4` : `grok_video_${videoId}.mp4`;
-    pendingFilenames[absoluteVideoUrl] = mp4FileName;
-    desiredFilenameQueue.push(mp4FileName);
-    await chrome.downloads.download({ url: absoluteVideoUrl, filename: mp4FileName, saveAs: false });
+    // 2) Download video file, ensure custom filename with quality indicator
+    // const videoFilename = isHd ? `grok_video_${videoId}_hd.mp4` : `grok_video_${videoId}.mp4`;
+    const mp4FileName = folderSequence ? `Grok/${folderSequence}${isHd ? `_hd` : ''}.mp4` : `grok_video_${videoId}${isHd ? `_hd` : ''}.mp4`;
+    // pendingFilenames[finalVideoUrl] = videoFilename;
+    // desiredFilenameQueue.push(videoFilename);
+    console.log('save to path: ', { url: finalVideoUrl, filename: mp4FileName, saveAs: false })
+    await chrome.downloads.download({ url: finalVideoUrl, filename: mp4FileName, saveAs: false });
   } catch (error) {
     console.error('Download failed:', error);
   }

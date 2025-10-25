@@ -19,14 +19,17 @@ function formatFullDateTime(date = new Date()) {
 }
 
 let currentUrl = window.location.href;
-let cachedVideoData = null;
+// let cachedVideoData = null;
 let resultPanel = null;
-let isProcessing = false;
-let processingStatus = null;
-let processingStartTime = null; // Record processing start time
-let cachedIconUrl = null; // Cache icon URL
-let processingVideoData = null; // Store video data during processing, independent of URL changes
-let processingStartTs = null; // Epoch milliseconds baseline for processing start
+// let isProcessing = false;
+// let processingStatus = null;
+// let processingStartTime = null; // Record processing start time
+// let cachedIconUrl = null; // Cache icon URL
+// let processingVideoData = null; // Store video data during processing, independent of URL changes
+// let processingStartTs = null; // Epoch milliseconds baseline for processing start
+//把url相关的数据结构进行封装，通过url隔离
+let currentDataKey = '';
+let currentData = null;
 
 // Field type configuration for different input types
 const FIELD_TYPES = {
@@ -107,7 +110,7 @@ function initializePlugin() {
     mountResultPanel();
 
     // Check URL cache immediately
-    checkUrlCache();
+    ///checkUrlCache();
 
     // Also check cache after a delay in case page is still loading
     // setTimeout(() => {
@@ -137,6 +140,12 @@ function checkUrlCache() {
   const normalizedUrl = getNormalizedUrl(currentUrl);
   const urlKey = `grok_video_${normalizedUrl}`;
 
+  //如果要切换key
+  if (currentDataKey && currentDataKey !== urlKey) {
+    if (currentData?.cachedVideoData?.originalPrompt) saveData();
+    currentDataKey = currentData = null;
+  }
+
   let cached = localStorage.getItem(urlKey);
 
   console.log(`[${formatTime()}] Checking cache for key:`, urlKey);
@@ -147,17 +156,19 @@ function checkUrlCache() {
   // console.log(`[${formatTime()}] All localStorage keys:`, allKeys.length);
   // console.log(`[${formatTime()}] Grok video keys:`, grokKeys);
 
+  currentDataKey = urlKey;
+
   if (cached) {
     try {
-      cachedVideoData = JSON.parse(cached);
+      let data = JSON.parse(cached);
 
       // Ensure originalPrompt is properly handled when loading from cache
-      if (cachedVideoData.originalPrompt && typeof cachedVideoData.originalPrompt === 'string') {
+      if (data.cachedVideoData?.originalPrompt && typeof data.cachedVideoData?.originalPrompt === 'string') {
         try {
           // Try to parse as JSON, if it fails, keep as string
-          const parsed = JSON.parse(cachedVideoData.originalPrompt);
+          const parsed = JSON.parse(data.cachedVideoData.originalPrompt);
           if (typeof parsed === 'object' && parsed !== null) {
-            cachedVideoData.originalPrompt = parsed;
+            data.cachedVideoData.originalPrompt = parsed;
             // console.log(`[${formatTime()}] Converted originalPrompt string back to object when loading from cache`);
           }
         } catch (e) {
@@ -166,19 +177,21 @@ function checkUrlCache() {
         }
       }
 
-      console.log(`[${formatTime()}] Loaded cached video data for URL:`, currentUrl, cachedVideoData);
+      currentData = data;
+      console.log(`[${formatTime()}] Loaded cached data for URL:`, currentUrl, currentData);
       //showResultPanel();
     } catch (e) {
       console.error(`[${formatTime()}] Failed to parse cached data:`, e);
     }
-    processingStatus = null;
   } else {
-    cachedVideoData = null;
-    processingStatus = null;
     console.log(`[${formatTime()}] No cache found for current URL`);
   }
   //
-  if (!cachedVideoData) cachedVideoData = generateEmptyVideoData()
+  if (!currentData) {
+    currentData = generateEmptyVideoData(true);
+    console.log(`[${formatTime()}] Create a default data for URL:`, currentUrl, currentData);
+  }
+  //
   updateResultPanel();
 }
 
@@ -200,9 +213,6 @@ function monitorUrlChanges() {
 
       if (currentUrl.includes('/imagine/post/')) {
         mountResultPanel();
-
-        // Check new URL cache
-        checkUrlCache();
       }
     }
   });
@@ -220,7 +230,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   switch (request.action) {
     case 'videoDetected':
-      handleVideoDetected(request.videoInfo);
+      handleVideoDetected(request.videoInfo, request.referer);
       sendResponse({ success: true });
       break;
     case 'videoProcessing':
@@ -233,8 +243,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Handle detected video
-function handleVideoDetected(videoInfo) {
-  console.log(`[${formatTime()}] [DEBUG] handleVideoDetected called with videoInfo:`, videoInfo);
+function handleVideoDetected(videoInfo, referer) {
+  console.log(`[${formatTime()}] [DEBUG] handleVideoDetected called with videoInfo:`, videoInfo, 'referer:', referer);
+
+  //不能使用currentUrl，因为操作是异步的，可能是来自于其他url
+  let key;
+  let data;
+  if (currentUrl === referer) {
+    key = currentDataKey;
+    data = currentData;
+  } else {
+    key = `grok_video_${getNormalizedUrl(referer)}`
+    data = localStorage.getItem(key);
+    if (!data) return;
+  }
 
   // Extract original prompt from the response
   const originalPrompt = extractOriginalPrompt(videoInfo);
@@ -244,31 +266,15 @@ function handleVideoDetected(videoInfo) {
   // parseSystemOptionsFromPrompt(originalPrompt);
 
   // Save processing start timestamp to videoInfo (only timestamp for persistence)
-  if (processingStartTime) {
-    processingStartTs = processingStartTime.getTime();
+  if (data.processingStartTime) {
+    data.processingStartTs = data.processingStartTime.getTime();
   }
-  if (processingStartTs) {
-    videoInfo.processingStartTs = processingStartTs;
+  if (data.processingStartTs) {
+    videoInfo.processingStartTs = data.processingStartTs;
   }
 
   //把复制要传递的属性到新对象
-  if (cachedVideoData) {
-    // console.log(`[${formatTime()}] cachedVideoData.videoPrompt:`, cachedVideoData.videoPrompt);
-    // console.log(`[${formatTime()}] originalPromptRaw:`, originalPromptRaw);
-    // console.log(`[${formatTime()}] videoInfo.originalPrompt:`, videoInfo.originalPrompt);
-    if (cachedVideoData.locales) {
-      videoInfo.locales = cachedVideoData.locales;
-      console.log(`[${formatTime()}] Merge mulit locales:`, cachedVideoData);
-    }
-    videoInfo.folderNameInputValue = cachedVideoData.folderNameInputValue;
-    cachedVideoData.sequenceNumber++;
-    videoInfo.sequenceNumber = cachedVideoData.sequenceNumber;
-  }
-
-  // Use initial URL for caching if available, otherwise use current URL
-  const cacheUrl = processingVideoData ? processingVideoData.initialUrl : currentUrl;
-  const normalizedUrl = getNormalizedUrl(cacheUrl);
-  const urlKey = `grok_video_${normalizedUrl}`;
+  data.sequence++;
 
   //console.log(`[${formatTime()}] Caching video data with key:`, urlKey, 'from URL:', cacheUrl);
   //console.log(`[${formatTime()}] Current URL at detection time:`, currentUrl);
@@ -281,22 +287,24 @@ function handleVideoDetected(videoInfo) {
     console.log(`[${formatTime()}] Converted originalPrompt object to string for storage`);
   }
 
-  localStorage.setItem(urlKey, JSON.stringify(videoInfoForStorage));
-
   // Verify the data was actually stored
   // const storedData = localStorage.getItem(urlKey);
   // console.log(`[${formatTime()}] Verification - data stored successfully:`, !!storedData);
   // console.log(`[${formatTime()}] Verification - stored data length:`, storedData ? storedData.length : 0);
 
-  cachedVideoData = videoInfo;
+  data.cachedVideoData = videoInfo;
 
   // Update processing status
-  processingStatus = 'completed';
-  isProcessing = false; // Processing completed, reset state
+  data.processingStatus = 'completed';
+  data.isProcessing = false; // Processing completed, reset state
+
+  saveData(key, data);
 
   // Show or update result panel
   //showResultPanel();
-  updateResultPanel();
+  if (data === currentData) {
+    updateResultPanel();
+  }
 }
 
 // Parse system options from original prompt
@@ -406,6 +414,7 @@ function extractOriginalPrompt(videoInfo) {
         const isConsistent = deepEqual(parsedOriginal, finalPrompt);
 
         if (isConsistent) {
+          console.log(`[${formatTime()}] cachedVideoData.videoPrompt: Injection completely consistent`);
           return "Injection completely consistent";
         } else {
           // Case 2: Partial injection - show original prompt
@@ -483,48 +492,56 @@ function deepEqual(obj1, obj2) {
 function handleVideoProcessing(status, referer) {
   console.log(`[${formatTime()}] handleVideoProcessing called with status:`, status, 'referer:', referer);
 
-  processingStatus = status;
+  //不能使用currentUrl，因为操作是异步的，可能是来自于其他url
+  let key;
+  let data;
+  if (currentUrl === referer) {
+    key = currentDataKey;
+    data = currentData;
+  } else {
+    key = `grok_video_${getNormalizedUrl(referer)}`
+    data = localStorage.getItem(key);
+    if (!data) return;
+  }
+
+  data.processingStatus = status;
 
   if (status === 'failed') {
     // Failed status doesn't set isProcessing to true, doesn't record time
   } else {
-    isProcessing = true;
+    data.isProcessing = true;
 
     // If starting processing, record start time and use referer for caching
     if (status === 'processing') {
       // 最佳实践：当收到带 referer 的首次 processing 时，强制刷新基准
       if (referer) {
-        processingStartTime = new Date();
-        processingStartTs = processingStartTime.getTime();
-        processingVideoData = {
+        data.processingStartTime = new Date();
+        data.processingStartTs = data.processingStartTime.getTime();
+        data.processingVideoData = {
           initialUrl: referer
         };
         console.log(`[${formatTime()}] Init processing baseline with referer:`, referer);
-      } else if (!processingStartTime) {
-        // 仍未建立基准且无 referer，回退当前 URL
-        processingStartTime = new Date();
-        processingStartTs = processingStartTime.getTime();
-        processingVideoData = {
-          initialUrl: currentUrl
-        };
-        console.log(`[${formatTime()}] Init processing baseline with current URL:`, currentUrl);
       }
-      console.log(`[${formatTime()}] Baseline now:`, processingVideoData);
-
-      //重置 cachedVideoData
-      //这个时候是在生成一个新的Video，所有的数据都要重建
-      // let lastVideoData = cachedVideoData;
-      // cachedVideoData = {}
-      // if (lastVideoData) {
-      //   cachedVideoData.locales = lastVideoData.locales;
+      // else if (!data.processingStartTime) {
+      //   // 仍未建立基准且无 referer，回退当前 URL
+      //   data.processingStartTime = new Date();
+      //   data.processingStartTs = data.processingStartTime.getTime();
+      //   data.processingVideoData = {
+      //     initialUrl: referer
+      //   };
+      //   console.log(`[${formatTime()}] Init processing baseline with current URL:`, referer);
       // }
+      console.log(`[${formatTime()}] Baseline now:`, data.processingVideoData);
+      saveData(key, data);
     }
   }
 
   // Update panel if it exists
   //if (resultPanel) {
   //updateProcessingStatus(status);
-  updateProcessingLayer();
+  if (data === currentData) {
+    updateProcessingLayer();
+  }
   //}
 }
 // #endregion
@@ -2428,26 +2445,44 @@ const statusClass = {
   'completed': 'status-completed'
 };
 
-function generateEmptyVideoData() {
-  let data = {}
-  data.folderNameInputValue = 'tmp';
-  data.sequenceNumber = 1;
+function generateEmptyVideoData(fillDefaultValue = false) {
+  let data = {
+    cachedVideoData: {},
+    locales: null,
+    isProcessing: false,
+    processingStatus: null,
+    processingStartTime: null,
+    processingVideoData: null,
+    processingStartTs: null,
+    folderName: fillDefaultValue ? currentUrl.substring(currentUrl.lastIndexOf('/') + 1) : null,
+    sequence: 0
+  }
+  //设置默认的提示词
+  if (fillDefaultValue) {
+    let input = findPromptInput();
+    if (input) {
+      const enTextarea = resultPanel.querySelector('#grok-spirit-json-text-en');
+      data.cachedVideoData.videoPrompt = enTextarea.value = enTextarea.textContent = input.value || input.textContent || '';
+    }
+    //设置默认的视频地址
+    let video = findVideo();//sd-video
+    if (video) {
+      data.cachedVideoData.videoUrl = video.getAttribute('src') || ''
+      if (data.cachedVideoData.videoUrl) {
+        //"https://assets.grok.com/users/3e91413c-bc42-4dcf-a426-6a9958ef8521/generated/459fe9bf-faa2-439d-96fb-1ad63bec0e30/generated_video.mp4?cache=1"
+        let videoUrl = getNormalizedUrl(data.cachedVideoData.videoUrl);
+        videoUrl = videoUrl.substring(0, videoUrl.lastIndexOf('/'))
+        data.cachedVideoData.videoId = videoUrl.substring(videoUrl.lastIndexOf('/') + 1)
+      }
+    }
+  }
+  //
   return data;
 }
-function updateLocalStorageField(field, value) {
-  const normalizedUrl = getNormalizedUrl(currentUrl);
-  const urlKey = `grok_video_${normalizedUrl}`;
-  let data = localStorage.getItem(urlKey)
-  if (data) {
-    try {
-      data = JSON.parse(data);
-      data[field] = value;
-      localStorage.setItem(urlKey, JSON.stringify(data));
-    } catch (e) {
-    }
-  } else {
-    localStorage.setItem(urlKey, JSON.stringify({ [field]: value }));
-  }
+function saveData(key, data) {
+  if (!key) key = currentDataKey;
+  if (!data) data = currentData;
+  if (key && data) localStorage.setItem(key, JSON.stringify(data));
 }
 
 function initResultPanel() {
@@ -2514,20 +2549,18 @@ function initResultPanel() {
     const folderInput = resultPanel.querySelector('#grok-spirit-folder-input');
     if (folderInput) {
       folderInput.addEventListener('blur', (event) => {
-        cachedVideoData.folderNameInputValue = event.target.value;
-        //实时更新缓存中的值
-        updateLocalStorageField('folderNameInputValue', cachedVideoData.folderNameInputValue);
+        currentData.folderName = event.target.value;
+        saveData();
       });
     }
 
     const sequenceInput = resultPanel.querySelector('#grok-spirit-sequence-input');
     if (sequenceInput) {
       sequenceInput.addEventListener('blur', (event) => {
-        let sequenceNumber = parseInt(event.target.value, 10);
-        if (!isNaN(sequenceNumber)) {
-          cachedVideoData.sequenceNumber = sequenceNumber;
-          //实时更新缓存中的值
-          updateLocalStorageField('sequenceNumber', cachedVideoData.sequenceNumber);
+        let sequence = parseInt(event.target.value, 10);
+        if (!isNaN(sequence)) {
+          currentData.sequence = sequence;
+          saveData();
         }
       });
     }
@@ -2540,7 +2573,7 @@ function mountResultPanel() {
   const ensurePromptLayer = (cb, retryCount = 0) => {
     container = findOperationContainer()
     if (!container || !findPromptLayer()) {
-      if (retryCount < 5) {
+      if (retryCount < 10) {
         setTimeout(() => ensurePromptLayer(cb, retryCount + 1), 500 * (retryCount + 1))
       } else {
         throw new Error('Cannot find promptLayer')
@@ -2552,6 +2585,7 @@ function mountResultPanel() {
 
   ensurePromptLayer(() => {
     container.parentNode.insertBefore(resultPanel, container.nextSibling);
+    checkUrlCache();
   })
 }
 
@@ -2567,8 +2601,13 @@ function findPromptInput() {
   return findPromptLayer()?.querySelector('textarea[aria-required="true"]')
 }
 
+function findVideo() {
+  return document.querySelector('video[id="sd-video"]')
+}
+
 // 设置ResultPanel的数据
 function updateResultPanel(options = {}) {
+  //
   //更新status
   updateProcessingLayer();
   // if (processingStatus === 'completed') {
@@ -2578,20 +2617,13 @@ function updateResultPanel(options = {}) {
   //   }, 2000)
   // }
 
-  let videoPrompt = cachedVideoData.videoPrompt || '';
+
+  let videoPrompt = currentData.cachedVideoData.videoPrompt || '';
   if (videoPrompt) {
     try {
       //重新格式化
       videoPrompt = JSON.stringify(JSON.parse(videoPrompt), null, 2);
     } catch (e) { }
-  }
-
-  const spicyBtn = resultPanel.querySelector('.grok-spirit-btn-spicy');
-  if (spicyBtn) {
-    spicyBtn.classList.remove('active');
-    if (videoPrompt.includes(SPICY_MODE)) {
-      spicyBtn.classList.add('active');
-    }
   }
 
   const enTextarea = resultPanel.querySelector('#grok-spirit-json-text-en');
@@ -2605,18 +2637,18 @@ function updateResultPanel(options = {}) {
 
   const folderInput = resultPanel.querySelector('#grok-spirit-folder-input');
   if (folderInput) {
-    folderInput.value = folderInput.textContent = cachedVideoData.folderNameInputValue;
+    folderInput.value = folderInput.textContent = currentData.folderName;
   }
 
   const sequenceInput = resultPanel.querySelector('#grok-spirit-sequence-input');
   if (sequenceInput) {
-    sequenceInput.value = sequenceInput.textContent = `${cachedVideoData.sequenceNumber}`;
+    sequenceInput.value = sequenceInput.textContent = `${currentData.sequence}`;
   }
 }
 function updateProcessingLayer() {
   const statusContainer = resultPanel.querySelector('.grok-spirit-status');
-  statusContainer.className = `grok-spirit-status ${statusClass[processingStatus]}`;
-  statusContainer.textContent = `${statusText[processingStatus] || ''}`
+  statusContainer.className = `grok-spirit-status ${statusClass[currentData.processingStatus]}`;
+  statusContainer.textContent = `${statusText[currentData.processingStatus] || ''}`
 }
 
 //处理剪切板
@@ -2635,36 +2667,38 @@ async function handleClipboardCopy() {
     }
 
     //重置
-    cachedVideoData.videoPrompt = '';
-    delete cachedVideoData.locales;
+    currentData.cachedVideoData.videoPrompt = '';
+    delete currentData.locales;
 
     //处理粘贴的数据
     let clipboardData;
     try {
       clipboardData = JSON.parse(trimmedText);
-    } catch (e) { }
+    } catch (e) {
+      console.warn('Clipboard is not a valid JSON:', e);
+    }
 
     //粘贴的是文本
     if (!clipboardData) {
-      clipboardData = cachedVideoData.videoPrompt = trimmedText;
-      console.log('Paste plain Text:', trimmedText);
+      clipboardData = currentData.cachedVideoData.videoPrompt = trimmedText;
+      console.log(`[${formatTime()}] Paste plain Text:`, trimmedText);
     } else if (clipboardData.en) {
       //如果是多语言
-      cachedVideoData.videoPrompt = JSON.stringify(clipboardData.en);
+      currentData.cachedVideoData.videoPrompt = JSON.stringify(clipboardData.en);
       delete clipboardData.en;
-      cachedVideoData.locales = { ...clipboardData }
-      console.log('Paste multi locale JSON:', cachedVideoData.videoPrompt);
-      console.log('Locales:', cachedVideoData.locales);
+      currentData.locales = clipboardData
+      console.log(`[${formatTime()}] Paste multi locale JSON:`, currentData.cachedVideoData.videoPrompt);
+      console.log(`[${formatTime()}] Locales:`, Object.keys(currentData.locales));
     } else {
-      cachedVideoData.videoPrompt = JSON.stringify(clipboardData);
-      console.log('Paste JSON:', cachedVideoData.videoPrompt);
+      currentData.cachedVideoData.videoPrompt = JSON.stringify(clipboardData);
+      console.log(`[${formatTime()}] Paste JSON:`, currentData.cachedVideoData.videoPrompt);
     }
 
     updateResultPanel();
     //
     const promptInput = findPromptInput();
     if (promptInput) {
-      promptInput.value = promptInput.textContent = cachedVideoData.videoPrompt || '';
+      promptInput.value = promptInput.textContent = currentData.cachedVideoData.videoPrompt || '';
       promptInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
@@ -2675,30 +2709,30 @@ async function handleClipboardCopy() {
 }
 
 function handleDownloadAll() {
-  if (!cachedVideoData || !cachedVideoData.videoUrl) {
+  if (!currentData.cachedVideoData?.videoUrl) {
     console.error('No video URL available for download');
     return;
   }
 
   let structuredData;
-  try { structuredData = JSON.parse(cachedVideoData.videoPrompt); } catch (e) { }
+  try { structuredData = JSON.parse(currentData.cachedVideoData.videoPrompt); } catch (e) { }
   if (!structuredData) {
-    structuredData = cachedVideoData.videoPrompt;
-  } else if (cachedVideoData.locales) {
-    structuredData = { en: { ...structuredData }, ...cachedVideoData.locales }
+    structuredData = currentData.cachedVideoData.videoPrompt;
+  } else if (currentData.locales) {
+    structuredData = { en: { ...structuredData }, ...currentData.locales }
   }
 
   const payload = {
     action: 'downloadVideo',
     videoInfo: {
-      videoId: cachedVideoData.videoId,
-      videoUrl: cachedVideoData.videoUrl,
-      videoPrompt: cachedVideoData.videoPrompt,
-      originalPrompt: cachedVideoData.originalPrompt || null,
-      progress: cachedVideoData.progress,
+      videoId: currentData.cachedVideoData.videoId,
+      videoUrl: currentData.cachedVideoData.videoUrl,
+      videoPrompt: currentData.cachedVideoData.videoPrompt,
+      originalPrompt: currentData.cachedVideoData.originalPrompt || null,
+      progress: currentData.cachedVideoData.progress,
       pageUrl: currentUrl,
       structuredData: structuredData,
-      folderSequence: `${cachedVideoData.folderNameInputValue ? `${cachedVideoData.folderNameInputValue}/` : ``}${`${cachedVideoData.sequenceNumber}`.padStart(3, '0')}`
+      folderSequence: `${currentData.folderName ? `${currentData.folderName}/` : ``}${`${currentData.sequence}`.padStart(3, '0')}`
     }
   };
 
@@ -2996,23 +3030,6 @@ function addStyles() {
     .grok-spirit-btn-clipboard:hover {
       background: #0069d9;
       border-color: #0056b3;
-    }
-
-    .grok-spirit-btn-spicy {
-      background: #f8a488;
-      color: white;
-      border-color: #e76f51;
-    }
-
-    .grok-spirit-btn-spicy:hover {
-      background: #f4a261;
-      border-color: #f4a261;
-    }
-
-    .grok-spirit-btn-spicy.active {
-      background: #d04a27;
-      border-color: #d04a27;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
     }
 
     .grok-spirit-btn-remove-locales {

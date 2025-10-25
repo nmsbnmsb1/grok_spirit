@@ -1,0 +1,60 @@
+{
+  "en": {
+    "shot": {
+      "motion_level": "描述镜头运动强度（如低、中、高），示例：medium",
+      "camera_depth": "说明镜头景深或取景范围，示例：medium shot",
+      "camera_view": "说明镜头视角高度（如俯视、平视、仰视），示例：eye level",
+      "camera_movement": "描述镜头运动方式（如推拉、摇移、静止），示例：static shot"
+    },
+    "scene": {
+      "location": "概述拍摄地点或场景，示例：enchanted forest glade",
+      "environment": "用一段话描绘环境氛围、光线和背景细节，示例：The setting is a lush woodland clearing with ancient trees, moss-covered rocks, and glowing fireflies. The lighting is dappled sunlight filtering through leaves, creating a magical, serene atmosphere."
+    },
+    "cinematography": {
+      "lighting": "描述光线来源、色温或布光方式，示例：natural sunlight with soft, ethereal glows",
+      "style": "说明整体视觉风格或类型，示例：3D CGI with a fantasy aesthetic",
+      "texture": "概述材质与细节质感，示例：lush, detailed foliage and smooth stone surfaces, with subtle sparkles on dew drops",
+      "depth_of_field": "说明景深效果或对焦范围，示例：shallow focus on the foreground character"
+    },
+    "visual_details": {
+      "objects": [
+        "列出画面中主要角色或物件及其外观特征，示例：Fantasy guardian elf: A figure with flowing silver hair, light green tunic with leaf patterns, boots, and a wooden staff adorned with vines."
+      ],
+      "positioning": [
+        "描述主体在画面中的位置、姿态与构图，示例：The Fantasy guardian elf is in the foreground, initially standing and then transitioning to a seated position on a mossy rock, with ancient trees and fireflies in the background."
+      ],
+      "text_elements": [
+        "说明需要叠加的文字、水印或图形元素，示例：Watermark: 'Global Story' in the top right corner, remaining static throughout."
+      ]
+    },
+    "motion": "用连续段落描述场景与角色动作的发展和节奏，示例：The video begins with the Fantasy guardian elf in the foreground, standing in a forest glade with arms outstretched toward the canopy. She then smoothly transitions into a seated position on a mossy rock.",
+    "audio": {
+      "music": "描述背景音乐的风格、节奏与编制，示例：Soft, atmospheric fantasy music with a serene, rhythmic undertone, featuring subtle flutes and ambient harps.",
+      "ambient": "说明环境声或背景自然声效，示例：Gentle rustle of leaves and distant bird calls.",
+      "sound_effect": "列出需要的特效声及其作用，示例：A soft, pulsating hum corresponding to the glowing vines, mixed with light wind chimes.",
+      "mix_level": "描述音乐、音效与环境声的混音比例，示例：Music and sound effects are balanced prominently, with ambient sounds subtly in the background, enhancing the magical mood."
+    },
+    "dialogue": [
+      {
+        "characters": "指出发声或说话的角色身份，示例：Fantasy guardian elf",
+        "content": "提供角色台词或旁白内容，示例：Awaken... the ancient bond",
+        "accent": "说明角色的口音或语音特征，示例：Neutral English with a calm, inspiring inflection",
+        "language": "注明台词语言，示例：English",
+        "emotion": "描述台词的情绪基调，示例：serene wonder",
+        "type": "说明台词的表现形式（如口述、低语等），示例：spoken",
+        "subtitles": "指明是否需要字幕（true/false），示例：false",
+        "start_time": "标注台词开始时间，格式 00:00:00.000，示例：00:00:01.000",
+        "end_time": "标注台词结束时间，格式 00:00:00.000，示例：00:00:04.500"
+      }
+    ],
+    "tags": [
+      "填写一个描述主题的标签关键词，示例：fantasy",
+      "填写一个描述情绪或氛围的标签关键词，示例：serene",
+      "填写一个描述视觉风格的标签关键词，示例：3D CGI",
+      "填写一个描述场景元素的标签关键词，示例：nature elements",
+      "填写一个描述特效或亮点的标签关键词，示例：glowing effects",
+      "填写一个补充主题的标签关键词，示例：harmonious movement"
+    ]
+  },
+  "cn": {  }
+}
