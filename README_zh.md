@@ -1,10 +1,14 @@
 <div align="center">
 
-# 🎨 Grok Spirit
+# 🎨 Grok Spirit · 无编辑器版
 
-*Grok Imagen 参数编辑器 - Chrome扩展*
+*Grok Imagen 参数捕获与下载辅助扩展*
 
-[English](README.md) | [中文](README_zh.md)
+> **当前主线：** 本仓库发布的即是 Grok Spirit **「无编辑器版」**，聚焦提示捕获、剪贴板注入与下载管理，不包含站内可视化编辑器。提示词可以根据 docs 目录下的模版文件，使用 JSON编辑器 或者 其他AI 生成。
+
+> 如果需要经典的多面板编辑器，请查阅完整版本仓库：[Grok Spirit 完整版](https://github.com/OtokoNoIzumi/grok_spirit) 或使用 Chrome 商店中的版本。
+
+[English](https://github.com/OtokoNoIzumi/grok_spirit/README.md) | [中文](https://github.com/OtokoNoIzumi/grok_spirit/README_zh.md)
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/logaoplejbodjhnogdndgllocmpmlako?label=Chrome%20商店版本&color=blue)](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako)
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/logaoplejbodjhnogdndgllocmpmlako?label=活跃用户&color=green)](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako)
@@ -12,126 +16,117 @@
 [![GitHub license](https://img.shields.io/github/license/OtokoNoIzumi/grok_spirit?color=blue)](https://github.com/OtokoNoIzumi/grok_spirit/blob/main/LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/OtokoNoIzumi/grok_spirit)](https://github.com/OtokoNoIzumi/grok_spirit/commits)
 
-**一个Chrome扩展，用于显示和编辑Grok Imagen提示参数**
+**一个 Chrome 扩展，用于捕获 Grok Imagen 视频提示并简化下载流程**
 
 ![Grok Spirit 功能截图](https://otokonoizumi.github.io/media/grok%20spirit.png)
 
-[🏪 Chrome商店安装](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako) · [📋 使用说明](#使用说明) · [🛠️ 本地安装](#本地安装) · [❓ 问题反馈](https://github.com/OtokoNoIzumi/grok_spirit/issues)
+[🏪 商店（完整版）](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako) · [📋 使用说明](#使用说明) · [🛠️ 本地安装](#本地安装简化版) · [❓ 问题反馈](https://github.com/OtokoNoIzumi/grok_spirit/issues)
 
 </div>
 
 ---
 
-## ✨ 功能特点
+## ✨ 功能特点（无内置编辑器）
 
-- 🔎 **提示捕获** - 自动记录每个完成视频使用的原始 JSON 结构
-- 📋 **剪贴板注入** - 一键读取剪贴板中的文本/JSON 并写入 Grok 输入框
-- 🗂️ **文件夹与序号** - 自定义下载文件夹与 3 位序号，保持素材整齐
-- 💾 **一键下载** - MP4 与元数据 JSON 同步下载并使用统一命名
-- ♻️ **本地缓存** - 每个 `/imagine/post/...` 页面都会保留最近一次的提示与状态
+- 🔎 **提示捕获**：自动记录每次成功生成视频时的原始 JSON/结构化数据
+- 📋 **剪贴板注入**：读取剪贴板文本/JSON 并回填至 Grok 输入框，方便在外部工具中编辑
+- 🗂️ **文件夹 & 序号命名**：自定义下载路径（如 `Grok/demo/007`）保持素材有序
+- 💾 **一键下载**：同时保存 MP4 与 metadata JSON，若可用会优先请求 HD 版本
+- ♻️ **本地缓存**：每个 `/imagine/post/...` 页面保留最近一次状态，随时回溯
 
-## 🪶 最简版本说明
+> ⚠️ 本版本不包含站内结构化编辑等功能。如需完整 UI，请改用 [完整版仓库](https://github.com/OtokoNoIzumi/grok_spirit) 或 Chrome 商店版本。
 
-当前仓库提供的是 Grok Spirit 的「最简面板」构建。  
-它舍弃了早期的多段式参数编辑器，专注在两个最常用的动作：
+## 🪶 版本说明
 
-1. **查看提示**：视频渲染完成后，面板会展示捕获到的 JSON（只读）及对应状态/时间。
-2. **复用提示**：在外部编辑器修改 JSON，复制后点击面板里的 **Clipboard**，内容就会自动写入 Grok 的输入框，随时再次生成。
+本版专注两条核心流程：
 
-面板额外提供「文件夹」「序号」两个输入框，用于决定下载文件的路径，例如 `Grok/作品集/007.mp4` 与 `Grok/作品集/007.json`。
+1. **查看提示**：视频完成时，面板展示捕获到的 JSON（只读）与进度、时间信息。
+2. **复用提示**：在任意文本编辑器修改 JSON，复制后点击面板中的 **Clipboard**，即可把内容写回 Grok 输入框继续生成。
+
+面板还提供「文件夹」「序号」两个输入框，决定下载保存路径，例如 `Grok/作品集/007.mp4` 及同名 JSON。
 
 ## 🚀 快速开始
 
-### Chrome商店安装（主线版本）
-
-> Chrome 商店提供的是经典/主线版本。当前仓库的最简版本 **未上架** 商店，如需主线版本可继续使用商店链接。
-
-[安装主线版本](https://chromewebstore.google.com/detail/logaoplejbodjhnogdndgllocmpmlako)
-
-### 本地安装（最简版本）
+### 本地安装（当前简化版）
 
 1. **下载项目**
    ```bash
-   git clone https://github.com/OtokoNoIzumi/grok_spirit.git
-   # 或下载ZIP文件并解压
+   git clone https://github.com/nmsbnmsb1/grok_spirit.git
+   # 或下载 ZIP 并解压
    ```
-
 2. **加载扩展**
-   - 打开Chrome浏览器，访问 `chrome://extensions/`
-   - 开启右上角的"开发者模式"
-   - 点击"加载已解压的扩展程序"
-   - 选择项目目录
-
+   - 打开 Chrome，访问 `chrome://extensions/`
+   - 开启右上角「开发者模式」
+   - 点击「加载已解压的扩展程序」
+   - 选择本仓库目录
 3. **开始使用（需手动加载）**
-   - 访问 grok.com/imagine
-   - 扩展将自动激活并显示 Grok Spirit 提示面板
+   - 访问 `grok.com/imagine`
+   - 面板会自动出现并显示提示 JSON
 
 ## 📖 使用说明
 
 ### 最简流程
 
-1. 在 `grok.com/imagine` 生成视频，Grok Spirit 会在请求完成时捕获 JSON 并显示在面板中。
-2. 在只读文本框里查看完整结构，顶部状态会提示是处理中、失败还是完成。
-3. 如需修改，复制 JSON 到任意编辑器调整，再复制回来点击 **Clipboard**，内容会写入 Grok 的输入框。
-4. 填写「文件夹」「序号」，扩展会记住这些值并用于之后的下载。
-5. 点击「Download」，即可按照 `Grok/<文件夹>/<序号>.{mp4,json}` 的规则下载视频和元数据（如可用会优先请求 HD）。
+1. 在 `grok.com/imagine` 生成视频。
+2. 面板会在请求完成后显示捕获到的 JSON 与状态标签（processing/failed/completed）。
+3. 需要修改时，将 JSON 复制到外部编辑器处理，再复制回剪贴板。
+4. 点击面板中的 **Clipboard**，内容会自动写入 Grok 输入框，可直接点击 Generate。
+5. 填写「文件夹」「序号」，再点击 Download，可得到 `Grok/<文件夹>/<序号>.{mp4,json}`（若可用将下载 HD）。
+
+> 💡 本版本所有参数编辑均在浏览器外完成，面板仅负责展示、注入与下载。
 
 ### 剪贴板提示
 
-- 支持纯文本、标准 JSON 或带多语言的 JSON（`en` 字段会注入到 Grok）。
-- 写入后等同于手动粘贴，可直接点击 Grok 自带的「Generate」。
+- 支持纯文本、单语言 JSON 或带 `en` 字段的多语言 JSON（会优先注入 `en`）。
+- 注入后与手动粘贴无异，可立刻使用 Grok 原生界面发起生成。
 
-## 🎬 视频元数据处理
+## 🎬 视频元数据处理 (完整版自带，未改动)
 
-我做了一个Python工具进行后期meta文件和视频的批量处理：
+我做了一个 Python 工具方便批量处理下载的 MP4 与 meta 文件：
 
-### 功能说明
-- **元数据嵌入**: 使用FFmpeg将JSON元数据嵌入到MP4文件中
-- **智能重命名**: 按提示组和版本自动组织文件
-- **批量处理**: 一次性处理整个目录的下载视频
+### 功能简介
+- **元数据嵌入**：使用 FFmpeg 将 JSON 元数据写入 MP4
+- **智能重命名**：按提示组与版本自动组织文件
+- **批量处理**：一次性处理整个目录
 
-### 快速设置
-1. **前置要求**: Python 3.10+, FFmpeg
-2. **安装**:
+### 快速开始
+1. **环境要求**：Python 3.10+，FFmpeg
+2. **安装依赖**：
    ```bash
    cd grok_video_processor
    pip install -r requirements.txt
    ```
-3. **使用**:
+3. **运行**：
    ```bash
    python meta_video.py
    ```
 
-### 文件组织
-工具会自动组织您的下载视频：
-- 按相似提示分组视频
-- 分配优先级编号（P1, P2等）
-- 在组内添加版本号（v1, v2等）
-- 最终格式：`grok_video_[uuid]_P1_v1.mp4`
+### 文件整理
+- 按相似提示分组
+- 生成优先级（P1、P2…）与版本号（v1、v2…）
+- 最终命名示例：`grok_video_[uuid]_P1_v1.mp4`
 
-**📖 详细文档**: 查看 [`grok_video_processor/README_zh.md`](grok_video_processor/README_zh.md) 获取完整的设置和使用说明。
+**📖 详细文档**：参见 [`grok_video_processor/README_zh.md`](grok_video_processor/README_zh.md)。
 
 ## 🤝 贡献指南
 
-欢迎贡献代码！请遵循以下步骤：
+欢迎提交改进：
 
 1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+2. 创建分支 `git checkout -b feature/AmazingFeature`
+3. 提交更改 `git commit -m 'Add some AmazingFeature'`
+4. 推送分支 `git push origin feature/AmazingFeature`
+5. 提交 Pull Request
 
 ## 📄 许可证
 
-本项目采用 MIT License 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+本项目采用 MIT License，详见 [LICENSE](LICENSE)。
 
 ## 🙏 致谢
 
-感谢以下开源项目和开发者的启发与帮助：
-
-- [Grok](https://grok.com/) - 提供了强大的AI图像生成平台
-- Chrome扩展开发社区 - 为扩展开发提供了丰富的资源和指导
-- [@nmsbnmsb1](https://github.com/nmsbnmsb1) - 暗色模式实现的初始想法和贡献
+- [Grok](https://grok.com/) — 强大的 AI 视频生成平台
+- Chrome 扩展开发者社区 — 提供丰富的资料与灵感
+- [@nmsbnmsb1](https://github.com/nmsbnmsb1) — 暗色模式与多项早期贡献
 
 ## 📈 Star History
 
