@@ -154,12 +154,6 @@ function checkUrlCache() {
     currentDataKey = currentData = null;
   }
 
-  //如果要切换key
-  if (currentDataKey && currentDataKey !== urlKey) {
-    if (currentData?.cachedVideoData?.originalPrompt) saveData();
-    currentDataKey = currentData = null;
-  }
-
   let cached = localStorage.getItem(urlKey);
 
   console.log(`[${formatTime()}] Checking cache for key:`, urlKey);
@@ -576,6 +570,8 @@ function handleVideoProcessing(status, referer) {
       // }
       console.log(`[${formatTime()}] Baseline now:`, data.processingVideoData);
       saveData(key, data);
+    } else if (status === 'generating_hd') { 
+      //
     }
   }
 
@@ -2491,12 +2487,14 @@ function escapeHtml(text) {
 const statusText = {
   'processing': 'Processing new video...',
   'failed': 'Processing failed',
-  'completed': 'Processing completed'
+  'completed': 'Processing completed',
+  'generating_hd': 'HD video generating...'
 };
 const statusClass = {
   'processing': 'status-processing',
   'failed': 'status-failed',
-  'completed': 'status-completed'
+  'completed': 'status-completed',
+  'generating_hd': 'status-processing'
 };
 
 function generateEmptyVideoData(fillDefaultValue = false) {
