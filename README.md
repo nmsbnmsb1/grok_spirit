@@ -32,6 +32,7 @@
 - 🗂️ **Folder & Sequence Naming** – Define the exact folder + 3-digit sequence for downloads (e.g., `Grok/demo/007`)
 - 💾 **One-click Download** – Saves the MP4 and metadata JSON together, requesting HD when available
 - ♻️ **Local Caching** – Each `/imagine/post/...` page keeps its latest prompt/status for easy revisit
+- 🗃️ **Favorites Organization** – Categorize and filter your favorite generated images directly on the Grok Imagine favorites page.
 
 > ⚠️ This build intentionally removes the on-page editor, preset management, and theme controls. Use the [full edition](https://github.com/OtokoNoIzumi/grok_spirit) or the Web Store release if you need those features.
 

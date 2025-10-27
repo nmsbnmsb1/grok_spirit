@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Grok Spirit",
-  "version": "1.1.4",
+  "version": "1.1.4.1",
   "description": "View and edit Grok Imagen prompt parameters. See what prompts generated your videos and modify them.",
   "permissions": [
     "debugger",
@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["https://grok.com/*"],
-      "js": ["content.js"],
+      "js": ["favoritesManager.js", "content.js"],
       "run_at": "document_end"
     }
   ],

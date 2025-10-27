@@ -83,6 +83,8 @@ const FIELD_CONFIG = {
   }
 };
 
+const SPICY_INJECT_SCRIPTS = '67f5f7067c8ca836';
+
 // Initialize on page load
 function initializeWhenReady() {
   if (document.readyState === 'loading') {
@@ -120,6 +122,8 @@ function initializePlugin() {
     // }, 1000);
   }
 
+  notifyFavoritesManager();
+
   // Monitor URL changes
   monitorUrlChanges();
 }
@@ -139,6 +143,16 @@ function getNormalizedUrl(url) {
 function checkUrlCache() {
   const normalizedUrl = getNormalizedUrl(currentUrl);
   const urlKey = `grok_video_${normalizedUrl}`;
+  //grok_video_https://grok.com/imagine/post/022dce21-fc25-4f13-a783-bfaa1924f1b9
+  const uuidMatches = urlKey.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+  const urlId = uuidMatches && uuidMatches.length ? uuidMatches[uuidMatches.length - 1] : '';
+
+
+  //如果要切换key
+  if (currentDataKey && currentDataKey !== urlKey) {
+    if (currentData?.cachedVideoData?.originalPrompt) saveData();
+    currentDataKey = currentData = null;
+  }
 
   //如果要切换key
   if (currentDataKey && currentDataKey !== urlKey) {
@@ -191,6 +205,28 @@ function checkUrlCache() {
     currentData = generateEmptyVideoData(true);
     console.log(`[${formatTime()}] Create a default data for URL:`, currentUrl, currentData);
   }
+  //检查是否更改过folder设置
+  if (favoriteData[urlId] && favoriteData[urlId].folderName) {
+    //currentData.folderName = '';
+    let folderName = favoriteData[urlId].folderName;
+    if (!currentData.folderName) currentData.folderName = folderName;
+    else {
+      let arr = currentData.folderName.split('/');
+      if (arr.length <= 1) {
+        arr.unshift(folderName);
+      } else if (arr.length === 2) {
+        if (arr[arr.length - 1] === '000') {
+          arr.unshift(folderName);
+        } else {
+          arr[0] = folderName;
+        }
+      } else if (arr.length >= 3) {
+        arr[0] = folderName;
+      }
+      currentData.folderName = arr.join('/');
+    }
+    if (currentData.cachedVideoData?.originalPrompt) saveData();
+  }
   //
   updateResultPanel();
 }
@@ -214,6 +250,8 @@ function monitorUrlChanges() {
       if (currentUrl.includes('/imagine/post/')) {
         mountResultPanel();
       }
+
+      notifyFavoritesManager();
     }
   });
 
@@ -234,6 +272,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
     case 'videoProcessing':
+      //https://grok.com/imagine/post/63b75206-8372-484e-805f-30f426ca8148
+      handleVideoProcessing(request.status, request.referer);
+      sendResponse({ success: true });
+      break;
+    case 'updateStatus':
       handleVideoProcessing(request.status, request.referer);
       sendResponse({ success: true });
       break;
@@ -912,13 +955,15 @@ function createProcessingStatus() {
     const statusText = {
       'processing': 'Processing new video...',
       'failed': 'New video processing failed',
-      'completed': 'New video processing completed'
+      'completed': 'New video processing completed',
+      'generating_hd': 'HD video generating...'
     };
 
     const statusClass = {
       'processing': 'status-processing',
       'failed': 'status-failed',
-      'completed': 'status-completed'
+      'completed': 'status-completed',
+      'generating_hd': 'status-processing'
     };
 
     statusHtml = `
@@ -1503,13 +1548,15 @@ function updateProcessingStatus(status) {
     const statusText = {
       'processing': 'Processing new video...',
       'failed': 'New video processing failed',
-      'completed': 'New video processing completed'
+      'completed': 'New video processing completed',
+      'generating_hd': 'HD video generating...'
     };
 
     const statusClass = {
       'processing': 'status-processing',
       'failed': 'status-failed',
-      'completed': 'status-completed'
+      'completed': 'status-completed',
+      'generating_hd': 'status-processing'
     };
 
     statusElement.textContent = statusText[status];
@@ -1519,8 +1566,15 @@ function updateProcessingStatus(status) {
     resultPanel.innerHTML = createPanelContent();
   }
 }
+
+// Update status display (alias for updateProcessingStatus)
+function updateStatusDisplay() {
+  updateProcessingStatus(processingStatus);
+}
 // #endregion
+
 // #region 事件处理器
+
 // Add event listeners to the panel
 function addPanelEventListeners() {
   if (!resultPanel) return;
@@ -2746,6 +2800,12 @@ function handleDownloadAll() {
       return;
     }
   });
+}
+
+function notifyFavoritesManager() {
+  if (window.GSFavoritesManager && typeof window.GSFavoritesManager.handleUrlChange === 'function') {
+    window.GSFavoritesManager.handleUrlChange(currentUrl);
+  }
 }
 
 // #region 样式

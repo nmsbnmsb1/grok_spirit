@@ -33,6 +33,7 @@
 - 🗂️ **文件夹 & 序号命名**：自定义下载路径（如 `Grok/demo/007`）保持素材有序
 - 💾 **一键下载**：同时保存 MP4 与 metadata JSON，若可用会优先请求 HD 版本
 - ♻️ **本地缓存**：每个 `/imagine/post/...` 页面保留最近一次状态，随时回溯
+- 🗃️ **收藏夹整理** – 直接在 Grok Imagine 收藏夹页面对您喜爱的生成图片进行分类和筛选。
 
 > ⚠️ 本版本不包含站内结构化编辑等功能。如需完整 UI，请改用 [完整版仓库](https://github.com/OtokoNoIzumi/grok_spirit) 或 Chrome 商店版本。
 

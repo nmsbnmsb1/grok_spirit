@@ -439,11 +439,17 @@ function constructHdUrl(videoUrl) {
   }
 }
 
-// Check if URL exists using HEAD request
+// Check if URL exists using GET request with Range header (to avoid downloading full file)
 async function checkUrlExists(url) {
   try {
-    const response = await fetch(url, { method: 'HEAD' });
-    return response.ok;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Range': 'bytes=0-0' // Only request first byte
+      }
+    });
+    // Accept both 206 (Partial Content) and 200 (OK) as valid responses
+    return response.ok || response.status === 206;
   } catch (error) {
     console.log('URL check failed:', error);
     return false;
@@ -508,6 +514,13 @@ async function downloadVideoWithMeta(videoInfo) {
     // Step 2: If HD doesn't exist, try to trigger HD generation
     if (!finalVideoUrl) {
       console.log('HD video not found, attempting to trigger HD generation...');
+      // Notify content script to show generating_hd status
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'updateStatus', status: 'generating_hd', referer: videoProcessingTabs[tabs[0].id].referer }).catch(() => { });
+        }
+      });
+
       const hdGeneratedUrl = await requestHdGeneration(videoId);
 
       if (hdGeneratedUrl) {
@@ -516,6 +529,13 @@ async function downloadVideoWithMeta(videoInfo) {
         videoQuality = 'hd';
         console.log('HD video generation successful, will download HD version');
       }
+
+      // Notify content script to restore completed status
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'updateStatus', status: 'completed', referer: videoProcessingTabs[tabs[0].id].referer }).catch(() => { });
+        }
+      });
     }
 
     // Step 3: Fallback to normal version
@@ -561,7 +581,7 @@ async function downloadVideoWithMeta(videoInfo) {
     await chrome.downloads.download({ url: finalVideoUrl, filename: videoFilename, conflictAction: 'uniquify', saveAs: false });
     console.log(`Download completed: ${videoQuality} version of video ${videoId}`);
     //
-} catch (error) {
+  } catch (error) {
     console.error('Download failed:', error);
   }
 }
