@@ -16,9 +16,9 @@ function saveFavoriteData() {
   const FAVORITES_URL_PREFIX = 'https://grok.com/imagine/favorites';
   const INLINE_STYLE_ID = 'gs-favorites-inline-style';
   const RENDER_DEBOUNCE_MS = 150;
-  const DEFAULT_CATEGORY = '未分类';
+  const DEFAULT_CATEGORY = 'Uncategorized';
   const ALL_CATEGORY_VALUE = '__ALL__';
-  const ALL_CATEGORY_TEXT = '全部显示';
+  const ALL_CATEGORY_TEXT = 'Show All';
 
   const state = {
     currentUrl: '',
@@ -27,10 +27,12 @@ function saveFavoriteData() {
     observer: null,
     renderTimer: null,
     //ui对象实例
+    seenIds: new Set(),
     items: new Map(),
     selectedItems: new Set(),
     toolbar: null,
     popup: null,
+    editPopup: null,
     currentFilterCategory: ALL_CATEGORY_VALUE,
   };
 
@@ -57,6 +59,7 @@ function saveFavoriteData() {
       state.isActive = true;
       ensureInlineStyles();
       ensureCategoryPopup();
+      ensureEditPopup();
     }
     watchListContainer();
   }
@@ -237,6 +240,15 @@ function saveFavoriteData() {
       }
       .gs-popup-btn-primary:hover {
         background: #4338ca;
+      }
+      .gs-popup-textarea {
+        min-height: 400px;
+        font-family: monospace;
+        font-size: 0.9rem;
+        resize: vertical;
+      }
+      .gs-edit-popup-modal {
+        max-width: 80vw;
       }
       .gs-fav-dim-overlay {
         position: absolute;
@@ -420,6 +432,7 @@ function saveFavoriteData() {
     cleanupAllItems();
     cleanupToolbar();
     hideCategoryPopup();
+    hideEditPopup();
   }
 
   // #region 渲染函数
@@ -443,6 +456,7 @@ function saveFavoriteData() {
       const meta = extractNode(node);
       if (!meta.id) return;
       seenIds.add(meta.id);
+      state.seenIds.add(meta.id);
       const item = ensureItemRecord(node, meta);
       decorateItem(item);
     });
@@ -704,7 +718,7 @@ function saveFavoriteData() {
     applyBtn.type = 'button';
     applyBtn.id = 'gs-fav-toolbar-apply-btn';
     applyBtn.className = 'gs-fav-toolbar-btn gs-fav-toolbar-apply';
-    applyBtn.textContent = '设置分类';
+    applyBtn.textContent = 'Set';
     applyBtn.disabled = true;
     toolbar.appendChild(applyBtn);
 
@@ -712,9 +726,17 @@ function saveFavoriteData() {
     cancelBtn.type = 'button';
     cancelBtn.id = 'gs-fav-toolbar-cancel-btn';
     cancelBtn.className = 'gs-fav-toolbar-btn gs-fav-toolbar-cancel';
-    cancelBtn.textContent = '清除选中';
+    cancelBtn.textContent = 'Clear';
     cancelBtn.disabled = true;
     toolbar.appendChild(cancelBtn);
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.id = 'gs-fav-toolbar-edit-btn';
+    editBtn.className = 'gs-fav-toolbar-btn';
+    editBtn.textContent = 'Edit';
+    toolbar.appendChild(editBtn);
+    editBtn.addEventListener('click', showEditPopup);
 
     state.applyCategoryHandler = () => showCategoryPopup();
     applyBtn.addEventListener('click', state.applyCategoryHandler);
@@ -767,7 +789,7 @@ function saveFavoriteData() {
         categories.add(saved.category.trim());
       }
     });
-    return Array.from(categories).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { sensitivity: 'base' }));
+    return Array.from(categories).sort((a, b) => a.localeCompare(b, 'en-US', { sensitivity: 'base' }));
   }
 
   function clearSelection() {
@@ -796,7 +818,7 @@ function saveFavoriteData() {
     let cancelSelectionBtn = state.toolbar?.querySelector("#gs-fav-toolbar-cancel-btn");
     if (cancelSelectionBtn) {
       cancelSelectionBtn.disabled = count === 0;
-      cancelSelectionBtn.textContent = count ? `清除选中 (${count})` : '清除选中';
+      cancelSelectionBtn.textContent = count ? `Clear(${count})` : 'Clear';
     }
   }
 
@@ -820,18 +842,18 @@ function saveFavoriteData() {
     const modal = document.createElement('div');
     modal.className = 'gs-popup-modal';
     modal.innerHTML = `
-      <h3 class="gs-popup-title">设置分类</h3>
+      <h3 class="gs-popup-title">Set Category</h3>
       <div class="gs-popup-form-group">
-        <label for="gs-category-name" class="gs-popup-label">分类名</label>
-        <input id="gs-popup-name-input" type="text" id="gs-category-name" class="gs-popup-input" placeholder="例如：风景、人物">
+        <label for="gs-category-name" class="gs-popup-label">Category Name</label>
+        <input id="gs-popup-name-input" type="text" id="gs-category-name" class="gs-popup-input" placeholder="e.g., Landscapes, People">
       </div>
       <div class="gs-popup-form-group">
-        <label for="gs-folder-name" class="gs-popup-label">文件夹名 (可选)</label>
-        <input id="gs-popup-folder-input" type="text" id="gs-folder-name" class="gs-popup-input" placeholder="例如：2024-Q4">
+        <label for="gs-folder-name" class="gs-popup-label">Folder Name (Optional)</label>
+        <input id="gs-popup-folder-input" type="text" id="gs-folder-name" class="gs-popup-input" placeholder="e.g., 2024-Q4">
       </div>
       <div class="gs-popup-actions">
-        <button id="gs-popup-cancel-btn" type="button" class="gs-popup-btn gs-popup-btn-secondary">取消</button>
-        <button id="gs-popup-save-btn" type="button" class="gs-popup-btn gs-popup-btn-primary">保存</button>
+        <button id="gs-popup-cancel-btn" type="button" class="gs-popup-btn gs-popup-btn-secondary">Cancel</button>
+        <button id="gs-popup-save-btn" type="button" class="gs-popup-btn gs-popup-btn-primary">Save</button>
       </div>
     `;
 
@@ -862,7 +884,7 @@ function saveFavoriteData() {
 
     const normalizedCat = (categoryName || '').trim() || DEFAULT_CATEGORY;
     const normalizedFolder = (folderName || '').trim();
-    if (normalizedCat === DEFAULT_CATEGORY || !normalizedFolder) return;
+    if (normalizedCat === DEFAULT_CATEGORY) return;
 
     state.selectedItems.forEach((id) => {
       if (!favoriteData[id]) favoriteData[id] = {};
@@ -881,6 +903,88 @@ function saveFavoriteData() {
   function hideCategoryPopup() {
     if (state.popup && state.popup.isConnected) {
       state.popup.remove();
+    }
+  }
+  // #endregion
+
+  // #region EditPopup
+  function ensureEditPopup() {
+    if (state.editPopup) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'gs-popup-overlay';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) hideEditPopup();
+    });
+
+    const modal = document.createElement('div');
+    modal.className = 'gs-popup-modal gs-edit-popup-modal';
+    modal.innerHTML = `
+      <h3 class="gs-popup-title">Edit Favorites Data</h3>
+      <div class="gs-popup-form-group">
+        <textarea id="gs-edit-popup-textarea" class="gs-popup-input gs-popup-textarea"></textarea>
+      </div>
+      <div class="gs-popup-actions">
+        <button id="gs-edit-popup-cancel-btn" type="button" class="gs-popup-btn gs-popup-btn-secondary">Cancel</button>
+        <button id="gs-edit-popup-clean-btn" type="button" class="gs-popup-btn gs-popup-btn-secondary">Auto Clean</button>
+        <button id="gs-edit-popup-save-btn" type="button" class="gs-popup-btn gs-popup-btn-primary">Save</button>
+      </div>
+    `;
+
+    overlay.appendChild(modal);
+
+    state.editPopup = overlay;
+
+    modal.querySelector('#gs-edit-popup-clean-btn').addEventListener('click', () => {
+      const textarea = modal.querySelector('#gs-edit-popup-textarea');
+      let currentData;
+      try {
+        currentData = JSON.parse(textarea.value);
+      } catch (e) {
+        alert("Cannot clean, the current content is not valid JSON.");
+        return;
+      }
+
+      for (const id in currentData) {
+        // Keep entry if it's an object and has a valid, non-empty category string
+        if (!state.seenIds.has(id)) {
+          delete currentData[id];
+        }
+      }
+
+      // Update textarea with cleaned data
+      textarea.value = JSON.stringify(currentData, null, 4);
+    });
+
+    modal.querySelector('#gs-edit-popup-save-btn').addEventListener('click', () => {
+      const textarea = modal.querySelector('#gs-edit-popup-textarea');
+      try {
+        const newData = JSON.parse(textarea.value);
+        favoriteData = newData;
+        saveFavoriteData();
+        hideEditPopup();
+        // Refresh UI
+        renderWithLatestData();
+      } catch (e) {
+        alert('Error parsing JSON. Please check the format.');
+        console.error("Error parsing favorites data:", e);
+      }
+    });
+
+    modal.querySelector('#gs-edit-popup-cancel-btn').addEventListener('click', hideEditPopup);
+  }
+
+  function showEditPopup() {
+    if (!state.editPopup) return;
+    const textarea = state.editPopup.querySelector('#gs-edit-popup-textarea');
+    textarea.value = JSON.stringify(favoriteData, null, 4);
+    document.body.appendChild(state.editPopup);
+    textarea.focus();
+  }
+
+  function hideEditPopup() {
+    if (state.editPopup && state.editPopup.isConnected) {
+      state.editPopup.remove();
     }
   }
   // #endregion

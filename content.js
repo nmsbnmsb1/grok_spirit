@@ -83,6 +83,8 @@ const FIELD_CONFIG = {
   }
 };
 
+const SPICY_INJECT_SCRIPTS = 'aa9cdde64a47b8c0';
+
 // Initialize on page load
 function initializeWhenReady() {
   if (document.readyState === 'loading') {
@@ -202,6 +204,8 @@ function checkUrlCache() {
     //currentData.folderName = '';
     let folderName = favoriteData[urlId].folderName;
     if (!currentData.folderName) currentData.folderName = folderName;
+    else if (currentData.folderName.startsWith(folderName)) { 
+    }
     else {
       let arr = currentData.folderName.split('/');
       if (arr.length <= 1) {

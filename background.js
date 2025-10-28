@@ -516,7 +516,7 @@ async function downloadVideoWithMeta(videoInfo) {
       console.log('HD video not found, attempting to trigger HD generation...');
       // Notify content script to show generating_hd status
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
+        if (tabs[0] && videoProcessingTabs[tabs[0].id]?.referer) {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'updateStatus', status: 'generating_hd', referer: videoProcessingTabs[tabs[0].id].referer }).catch(() => { });
         }
       });
@@ -532,7 +532,7 @@ async function downloadVideoWithMeta(videoInfo) {
 
       // Notify content script to restore completed status
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
+        if (tabs[0] && videoProcessingTabs[tabs[0].id]?.referer) {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'updateStatus', status: 'completed', referer: videoProcessingTabs[tabs[0].id].referer }).catch(() => { });
         }
       });
