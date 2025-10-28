@@ -83,8 +83,6 @@ const FIELD_CONFIG = {
   }
 };
 
-const SPICY_INJECT_SCRIPTS = '67f5f7067c8ca836';
-
 // Initialize on page load
 function initializeWhenReady() {
   if (document.readyState === 'loading') {
@@ -304,6 +302,7 @@ function handleVideoDetected(videoInfo, referer) {
 
   // Save processing start timestamp to videoInfo (only timestamp for persistence)
   if (data.processingStartTime) {
+    if (typeof data.processingStartTime === 'string') data.processingStartTime = new Date(data.processingStartTime)
     data.processingStartTs = data.processingStartTime.getTime();
   }
   if (data.processingStartTs) {
@@ -570,7 +569,7 @@ function handleVideoProcessing(status, referer) {
       // }
       console.log(`[${formatTime()}] Baseline now:`, data.processingVideoData);
       saveData(key, data);
-    } else if (status === 'generating_hd') { 
+    } else if (status === 'generating_hd') {
       //
     }
   }
@@ -2494,7 +2493,7 @@ const statusClass = {
   'processing': 'status-processing',
   'failed': 'status-failed',
   'completed': 'status-completed',
-  'generating_hd': 'status-processing'
+  'generating_hd': 'status-generating-hd'
 };
 
 function generateEmptyVideoData(fillDefaultValue = false) {
@@ -2956,6 +2955,25 @@ function addStyles() {
       background: #d4edda;
       color: #155724;
       border: 1px solid #c3e6cb;
+    }
+
+    .status-generating-hd {
+      background-color: #007bff;
+      color: white;
+      border: 1px solid #0056b3;
+      animation: pulse-animation 1.5s infinite;
+    }
+
+    @keyframes pulse-animation {
+      0% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.4);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+      }
     }
 
     .grok-spirit-keyvalue {

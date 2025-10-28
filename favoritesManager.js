@@ -66,15 +66,13 @@ function saveFavoriteData() {
     const style = document.createElement('style');
     style.id = INLINE_STYLE_ID;
     style.textContent = `
+      /* Base Styles */
       .gs-fav-toolbar {
         display: flex;
         align-items: center;
         gap: 10px;
         padding: 12px 16px;
-        background: rgba(15, 23, 42, 0.88);
         border-radius: 28px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
         font-family: inherit;
         z-index: 2147483000;
         backdrop-filter: blur(12px);
@@ -88,33 +86,23 @@ function saveFavoriteData() {
         align-items: center;
         gap: 10px;
         padding: 12px 16px;
-        background: rgba(15, 23, 42, 0.88);
         border-radius: 28px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
         font-family: inherit;
         backdrop-filter: blur(12px);
       }
       .gs-fav-toolbar-label {
         font-weight: 600;
-        color: #f8fafc;
         margin-right: 4px;
       }
       .gs-fav-category-select {
         min-width: 140px;
         padding: 6px 10px;
         border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(15, 23, 42, 0.7);
-        color: #f8fafc;
         font-size: 0.9rem;
       }
       .gs-fav-toolbar-btn {
         padding: 6px 12px;
         border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(79, 70, 229, 0.25);
-        color: #eef2ff;
         font-size: 0.85rem;
         font-weight: 500;
         cursor: pointer;
@@ -124,13 +112,8 @@ function saveFavoriteData() {
         cursor: not-allowed;
         opacity: 0.5;
       }
-      .gs-fav-toolbar-btn:not(:disabled):hover {
-        background: #4338ca;
-        color: #fff;
-      }
       .gs-fav-selection-count {
         margin-left: auto;
-        color: #475569;
         font-size: 0.85rem;
         white-space: nowrap;
       }
@@ -170,10 +153,10 @@ function saveFavoriteData() {
         width: 16px;
         height: 16px;
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.85);
-        color: #372ea3;
         font-size: 1.3rem;
         font-weight: 1000;
+        background: rgba(255, 255, 255, 0.85);
+        color: #372ea3;
       }
       .gs-fav-checkbox-wrapper input:checked + .gs-fav-checkbox-mark::after {
         content: '✓';
@@ -184,8 +167,6 @@ function saveFavoriteData() {
         left: 10px;
         padding: 4px 10px;
         border-radius: 999px;
-        background: rgba(15, 23, 42, 0.6);
-        color: #fff;
         font-size: 0.75rem;
         font-weight: 500;
         letter-spacing: 0.01em;
@@ -201,7 +182,6 @@ function saveFavoriteData() {
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(15, 23, 42, 0.7);
         backdrop-filter: blur(8px);
         z-index: 2147483640;
         display: flex;
@@ -209,14 +189,11 @@ function saveFavoriteData() {
         justify-content: center;
       }
       .gs-popup-modal {
-        background: rgba(30, 41, 59, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 16px;
         padding: 24px;
         width: 100%;
         max-width: 400px;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        color: #f8fafc;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.1);
       }
       .gs-popup-title {
         font-size: 1.25rem;
@@ -231,15 +208,11 @@ function saveFavoriteData() {
         font-size: 0.9rem;
         font-weight: 500;
         margin-bottom: 8px;
-        color: #cbd5e1;
       }
       .gs-popup-input {
         width: 100%;
         padding: 10px 12px;
         border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(15, 23, 42, 0.8);
-        color: #f8fafc;
         font-size: 1rem;
         box-sizing: border-box;
       }
@@ -265,26 +238,139 @@ function saveFavoriteData() {
       .gs-popup-btn-primary:hover {
         background: #4338ca;
       }
-      .gs-popup-btn-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: #e2e8f0;
-      }
-      .gs-popup-btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.15);
-      }
       .gs-fav-dim-overlay {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
         z-index: 4; /* Below checkbox and badge */
         pointer-events: none; /* Allow clicks to pass through to the item */
         display: none; /* Hidden by default */
       }
       .gs-fav-dim-overlay.gs-active {
         display: block; /* Visible when active */
+      }
+
+      /* Light Mode (Default) */
+      .gs-fav-toolbar, .gs-fav-toolbar-block {
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      }
+      .gs-fav-toolbar-label {
+        color: #1e293b;
+      }
+      .gs-fav-category-select {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        background: rgba(255, 255, 255, 0.7);
+        color: #1e293b;
+      }
+      .gs-fav-toolbar-btn {
+        border: 1px solid transparent;
+        background: rgba(79, 70, 229, 0.1);
+        color: #3730a3;
+      }
+      .gs-fav-toolbar-btn:not(:disabled):hover {
+        background: #4f46e5;
+        color: #fff;
+      }
+      .gs-fav-selection-count {
+        color: #64748b;
+      }
+      .gs-fav-category-badge {
+        background: rgba(255, 255, 255, 0.85);
+        color: #1e293b;
+        border: 1px solid rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+      .gs-popup-overlay {
+        background: rgba(248, 250, 252, 0.7);
+      }
+      .gs-popup-modal {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        color: #0f172a;
+      }
+      .gs-popup-label {
+        color: #475569;
+      }
+      .gs-popup-input {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .gs-popup-btn-secondary {
+        background: #f1f5f9;
+        color: #334155;
+      }
+      .gs-popup-btn-secondary:hover {
+        background: #e2e8f0;
+      }
+      .gs-fav-dim-overlay {
+        background: rgba(255, 255, 255, 0.6);
+      }
+
+      /* Dark Mode */
+      @media (prefers-color-scheme: dark) {
+        .gs-fav-toolbar, .gs-fav-toolbar-block {
+          background: rgba(15, 23, 42, 0.88);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+        }
+        .gs-fav-toolbar-label {
+          color: #f8fafc;
+        }
+        .gs-fav-category-select {
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(15, 23, 42, 0.7);
+          color: #f8fafc;
+        }
+        .gs-fav-toolbar-btn {
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(79, 70, 229, 0.25);
+          color: #eef2ff;
+        }
+        .gs-fav-toolbar-btn:not(:disabled):hover {
+          background: #4338ca;
+          color: #fff;
+        }
+        .gs-fav-selection-count {
+          color: #475569;
+        }
+        .gs-fav-category-badge {
+          background: rgba(15, 23, 42, 0.6);
+          color: #fff;
+          border: none;
+          box-shadow: none;
+        }
+        .gs-popup-overlay {
+          background: rgba(15, 23, 42, 0.7);
+        }
+        .gs-popup-modal {
+          background: rgba(30, 41, 59, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+          color: #f8fafc;
+        }
+        .gs-popup-label {
+          color: #cbd5e1;
+        }
+        .gs-popup-input {
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(15, 23, 42, 0.8);
+          color: #f8fafc;
+        }
+        .gs-popup-btn-secondary {
+          background: rgba(255, 255, 255, 0.1);
+          color: #e2e8f0;
+        }
+        .gs-popup-btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
+        .gs-fav-dim-overlay {
+          background: rgba(0, 0, 0, 0.5);
+        }
       }
     `;
     document.head.appendChild(style);
@@ -782,6 +868,9 @@ function saveFavoriteData() {
       if (!favoriteData[id]) favoriteData[id] = {};
       favoriteData[id].category = normalizedCat;
       favoriteData[id].folderName = normalizedFolder;
+
+      let item = state.items.get(id)
+      if (item) decorateItem(item);
     });
 
     syncCategoryOptions();
