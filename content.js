@@ -83,8 +83,6 @@ const FIELD_CONFIG = {
   }
 };
 
-const SPICY_INJECT_SCRIPTS = 'aa9cdde64a47b8c0';
-
 // Initialize on page load
 function initializeWhenReady() {
   if (document.readyState === 'loading') {

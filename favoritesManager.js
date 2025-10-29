@@ -34,6 +34,7 @@ function saveFavoriteData() {
     popup: null,
     editPopup: null,
     currentFilterCategory: ALL_CATEGORY_VALUE,
+    shiftAnchorId: null,
   };
 
   // #region Helper
@@ -543,8 +544,8 @@ function saveFavoriteData() {
     wrapper.appendChild(checkbox);
     wrapper.appendChild(mark);
 
-    const listener = (event) => handleCheckboxChange(item.id, event.target.checked);
-    checkbox.addEventListener('change', listener);
+    const listener = (event) => handleCheckboxChange(item.id, event.target.checked, event.altKey, event);
+    checkbox.addEventListener('click', listener);
 
     item.checkbox = checkbox;
     item.checkboxListener = listener;
@@ -608,15 +609,88 @@ function saveFavoriteData() {
     return DEFAULT_CATEGORY;
   }
 
-  function handleCheckboxChange(id, checked) {
-    if (checked) {
-      state.selectedItems.add(id);
+  function handleCheckboxChange(id, checked, isAltKey, event) {
+    //如果没有按着shift，正常点击
+    let mode = 'single';
+    if (!state.shiftAnchorId) {
+      if (checked) {
+        state.shiftAnchorId = id;
+        console.log('shiftAnchorId', id)
+      }
     } else {
-      state.selectedItems.delete(id);
+      //开启多选模式
+      if (!isAltKey) {
+        if (checked) {
+          state.shiftAnchorId = id;
+        }
+      } else if (state.shiftAnchorId === id) {
+        if (checked) {
+          state.shiftAnchorId = id;
+        } else {
+          state.shiftAnchorId = null;
+        }
+      } else {
+        // --- RANGE SELECTION ---
+        const nodes = collectCandidateNodes(state.listContainer);
+        // == 排序 start
+        nodes.sort((a, b) => {
+          const topA = parseInt(a.style.top, 10) || 0;
+          const leftA = parseInt(a.style.left, 10) || 0;
+          const topB = parseInt(b.style.top, 10) || 0;
+          const leftB = parseInt(b.style.left, 10) || 0;
+
+          if (topA !== topB) {
+            return topA - topB;
+          }
+          return leftA - leftB;
+        });
+        // nodes.forEach((node, index) => {
+        //   console.log(node.dataset.gsFavId)
+        // });
+        // == 排序 end
+        //确定开始index和结束index
+        let startIndex = null;
+        let endIndex = null;
+        nodes.forEach((node, index) => {
+          if (!(node instanceof HTMLElement)) return;
+          let item = state.items.get(node.dataset.gsFavId);
+          if (!item) return;
+          if (item.id === state.shiftAnchorId || item.id === id) {
+            if (startIndex === null) startIndex = index;
+            else if (endIndex === null) endIndex = index;
+          }
+        });
+        //
+        //根据顺序搜索Item
+        if (startIndex !== null && endIndex !== null) {
+          mode = 'multi';
+          state.shiftAnchorId = null;
+          if (startIndex > endIndex) {
+            let tmp = startIndex;
+            startIndex = endIndex;
+            endIndex = tmp
+          }
+          for (let i = startIndex; i <= endIndex; i++) {
+            let item = state.items.get(nodes[i].dataset.gsFavId);
+            if (!item && !item.node.isConnected) continue;
+            state.selectedItems.add(item.id);
+            syncItemSelectionState(item);
+          }
+        }
+      }
     }
-    const item = state.items.get(id);
-    if (item) {
-      syncItemSelectionState(item);
+
+    //
+    if (mode === 'single') {
+      if (checked) {
+        state.selectedItems.add(id);
+      } else {
+        state.selectedItems.delete(id);
+      }
+      const item = state.items.get(id);
+      if (item) {
+        syncItemSelectionState(item);
+      }
     }
     updateToolbarState();
   }
@@ -659,6 +733,7 @@ function saveFavoriteData() {
     state.items.forEach((item) => cleanupItemUi(item));
     state.items.clear();
     state.selectedItems.clear();
+    state.shiftAnchorId = null;
   }
   // #endregion 
 
@@ -804,6 +879,7 @@ function saveFavoriteData() {
       }
     });
     state.selectedItems.clear();
+    state.shiftAnchorId = null;
     updateToolbarState();
   }
 
@@ -844,12 +920,12 @@ function saveFavoriteData() {
     modal.innerHTML = `
       <h3 class="gs-popup-title">Set Category</h3>
       <div class="gs-popup-form-group">
-        <label for="gs-category-name" class="gs-popup-label">Category Name</label>
-        <input id="gs-popup-name-input" type="text" id="gs-category-name" class="gs-popup-input" placeholder="e.g., Landscapes, People">
+        <label for="gs-popup-name-input" class="gs-popup-label">Category Name</label>
+        <input type="text" id="gs-popup-name-input" class="gs-popup-input" placeholder="e.g., Landscapes, People">
       </div>
       <div class="gs-popup-form-group">
-        <label for="gs-folder-name" class="gs-popup-label">Folder Name (Optional)</label>
-        <input id="gs-popup-folder-input" type="text" id="gs-folder-name" class="gs-popup-input" placeholder="e.g., 2024-Q4">
+        <label for="gs-popup-folder-input" class="gs-popup-label">Folder Name (Optional)</label>
+        <input type="text" id="gs-popup-folder-input" class="gs-popup-input" placeholder="e.g., 2024-Q4">
       </div>
       <div class="gs-popup-actions">
         <button id="gs-popup-cancel-btn" type="button" class="gs-popup-btn gs-popup-btn-secondary">Cancel</button>
@@ -873,10 +949,53 @@ function saveFavoriteData() {
 
   function showCategoryPopup() {
     if (!state.popup) return;
-    state.popup.querySelector('#gs-popup-name-input').value = '';
-    state.popup.querySelector('#gs-popup-name-input').focus();
-    state.popup.querySelector('#gs-popup-folder-input').value = '';
+
+    const categoryInput = state.popup.querySelector('#gs-popup-name-input');
+    const folderInput = state.popup.querySelector('#gs-popup-folder-input');
+
+    // Reset values
+    categoryInput.value = '';
+    folderInput.value = '';
+
+    // Determine placeholders based on selection
+    const selectedIds = Array.from(state.selectedItems);
+    const categories = new Set();
+    const folders = new Set();
+
+    selectedIds.forEach(id => {
+      const data = favoriteData[id];
+      if (data) {
+        if (data.category && data.category !== DEFAULT_CATEGORY) {
+          categories.add(data.category);
+        }
+        if (data.folderName) {
+          folders.add(data.folderName);
+        }
+      }
+    });
+
+    // Category placeholder logic
+    if (categories.size === 0) {
+      categoryInput.placeholder = 'e.g., Landscapes, People';
+    } else {
+      categoryInput.placeholder = Array.from(categories).join(', ');
+      if (categories.size === 1) {
+        categoryInput.value = categoryInput.textContent = categoryInput.placeholder;
+      }
+    }
+
+    // Folder placeholder logic
+    if (folders.size === 0) {
+      folderInput.placeholder = 'e.g., 2024-Q4';
+    } else {
+      folderInput.placeholder = Array.from(folders).join(', ');
+      if (folders.size === 1) {
+        folderInput.value = folderInput.textContent = folderInput.placeholder;
+      }
+    }
+
     document.body.appendChild(state.popup);
+    categoryInput.focus();
   }
 
   function applySelectedCategory(categoryName, folderName) {
