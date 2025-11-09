@@ -196,7 +196,7 @@
             }
         } catch (e) {
             // ignore
-            console.log(e);
+            //console.log(e);
         }
     });
     chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
@@ -213,7 +213,7 @@
     async function getKeyAndDataByReferer(referer) {
         let key;
         let data;
-        if (currentUrl === referer) {
+        if (state.currentUrl === referer) {
             key = state.currentDataKey;
             data = state.currentData;
         } else {
@@ -226,22 +226,9 @@
         console.log(`[GrokSpirit] handleVideoProcessing called with status:`, status, 'key:', key);
 
         data.processingStatus = status;
-
-        if (status === 'failed') {
-            // Failed status doesn't set isProcessing to true, doesn't record time
-        } else {
-            data.isProcessing = true;
-
-            // If starting processing, record start time and use referer for caching
-            if (status === 'processing') {
-                await saveData(key, data);
-            }
-        }
-
-        //判断是否刷新ui
-        if (data === state.currentData) {
-            updateProcessingLayer();
-        }
+        data.isProcessing = status !== 'failed' && status !== 'completed';
+        await saveData(key, data);
+        if (data.id === state.currentData?.id) updateResultPanel();
     }
     async function handleVideoDetected(videoInfo, key, data, referer) {
         console.log(`[GrokSpirit] handleVideoDetected called with videoInfo:`, videoInfo, 'key:', key);
@@ -266,13 +253,8 @@
         // Update processing status
         data.processingStatus = 'completed';
         data.isProcessing = false; // Processing completed, reset state
-
         await saveData(key, data);
-
-        // 判断是否更新UI
-        if (data === state.currentData) {
-            updateResultPanel();
-        }
+        if (data.id === state.currentData?.id) updateResultPanel();
     }
     function extractOriginalPrompt(videoInfo) {
         // Original prompt is now directly passed from background script
@@ -377,6 +359,7 @@
         state.active = false;
         console.log('[GrokSpirit] stop');
 
+        state.currentUrl = null;
         state.resultPanel.remove();
 
         if (state.currentDataKey) {
@@ -682,9 +665,13 @@
                 return;
             }
             //保存状态
-            state.currentData.sequence += 1;
-            await saveData();
-            updateSequenceInput();
+            let { key, data } = await getKeyAndDataByReferer(payload.referer);
+            //if (!data) data = generateEmptyVideoData(payload.referer); impossible
+            data.sequence += 1;
+            await saveData(key, data);
+            if (data.id === state.currentData?.id) {
+                updateSequenceInput();
+            }
         });
     }
     async function mountResultPanel() {
