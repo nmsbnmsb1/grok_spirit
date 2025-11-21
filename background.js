@@ -60,6 +60,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (window.__grokHookInstalledV2) return;
             window.__grokHookInstalledV2 = true;
 
+            //重载fetch
             const ORIG_FETCH = window.fetch;
             function hookFetch(input, init) {
               let p;
@@ -122,6 +123,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
             try { Object.defineProperty(hookFetch, 'name', { value: 'fetch' }); hookFetch.toString = ORIG_FETCH.toString.bind(ORIG_FETCH); } catch (e) { }
             Object.defineProperty(window, 'fetch', { value: hookFetch, configurable: true, writable: true });
+
+            //重载websocket
+            const ORIG_WS_SEND = WebSocket.prototype.send;
+            WebSocket.prototype.send = function (data) {
+              // 在这里决定“是否允许发送”
+              if (window.location.href.indexOf('/imagine/post/') !== -1) {
+                try {
+                  // 若 data 是 JSON
+                  const payload = JSON.parse(data);
+                  // 阻断生成图片的方法
+                  if (payload.type == 'conversation.item.create') {
+                    if (!document.querySelector('.gs-btn-gen-images')?.classList.contains('gs-active')) {
+                      console.warn('Blocked WebSocket message:', data);
+                      return;
+                    }
+                  }
+                } catch (_) {
+                  // 非 JSON 的情况，也可以做字符串分析
+                }
+              }
+              //
+              return ORIG_WS_SEND.apply(this, arguments);
+            };
+
           } catch (e) { }
         }
       }, () => {
@@ -436,7 +461,7 @@ async function checkUrlExists(url) {
     // Accept both 206 (Partial Content) and 200 (OK) as valid responses
     return response.ok || response.status === 206;
   } catch (error) {
-    console.log('URL check failed:', error);
+    console.log('[GrokSpirit] URL check failed:', error);
     return false;
   }
 }
@@ -445,7 +470,7 @@ async function checkUrlExists(url) {
 async function requestHdGeneration(videoId) {
   try {
     const payload = { videoId: videoId };
-    console.log('Sending HD generation request with payload:', JSON.stringify(payload));
+    console.log('[GrokSpirit] Sending HD generation request with payload:', JSON.stringify(payload));
 
     const response = await fetch('https://grok.com/rest/media/video/upscale', {
       method: 'POST',
@@ -459,11 +484,11 @@ async function requestHdGeneration(videoId) {
       const data = await response.json();
       return data.hdMediaUrl || null;
     } else {
-      console.log('HD generation request failed:', response.status, response.statusText);
+      console.log('[GrokSpirit] HD generation request failed:', response.status, response.statusText);
       return null;
     }
   } catch (error) {
-    console.log('HD generation request error:', error);
+    console.log('[GrokSpirit] HD generation request error:', error);
     return null;
   }
 }
@@ -486,24 +511,25 @@ async function downloadVideoWithMeta(videoInfo, referer) {
     // Step 1: Try to download HD version directly (check if HD URL exists)
     const hdUrl = constructHdUrl(normalVideoUrl);
     if (hdUrl) {
-      console.log('Checking if HD video exists:', hdUrl);
+      console.log('[GrokSpirit] Checking if HD video exists:', hdUrl);
       const hdExists = await checkUrlExists(hdUrl);
 
       if (hdExists) {
         finalVideoUrl = hdUrl;
         isHd = true;
         videoQuality = 'hd';
-        console.log('HD video found, will download HD version');
+        console.log('[GrokSpirit] HD video found, will download HD version');
       }
     }
 
     // Step 2: If HD doesn't exist, try to trigger HD generation
     if (!finalVideoUrl) {
-      console.log('HD video not found, attempting to trigger HD generation...');
+      console.log('[GrokSpirit] HD video not found, attempting to trigger HD generation...');
       // Notify content script to show generating_hd status
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
-          chrome.tabs.sendMessage(tabs[0].id, { source: 'grok-spirit-generate-hd', referer }).catch(() => { });
+      chrome.tabs.query({}, (tabs) => {
+        const target = tabs.find(tab => tab.url === referer);
+        if (target) {
+          chrome.tabs.sendMessage(target.id, { source: 'grok-spirit-generate-hd', referer }).catch(() => { });
         }
       });
 
@@ -513,13 +539,14 @@ async function downloadVideoWithMeta(videoInfo, referer) {
         finalVideoUrl = hdGeneratedUrl;
         isHd = true;
         videoQuality = 'hd';
-        console.log('HD video generation successful, will download HD version');
+        console.log('[GrokSpirit] HD video generation successful, will download HD version');
       }
 
       // Notify content script to restore completed status
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
-          chrome.tabs.sendMessage(tabs[0].id, { source: 'grok-spirit-generate-hd', referer, status: 'completed' }).catch(() => { });
+      chrome.tabs.query({}, (tabs) => {
+        const target = tabs.find(tab => tab.url === referer);
+        if (target) {
+          chrome.tabs.sendMessage(target.id, { source: 'grok-spirit-generate-hd', referer, status: 'completed' }).catch(() => { });
         }
       });
     }
@@ -529,7 +556,7 @@ async function downloadVideoWithMeta(videoInfo, referer) {
       finalVideoUrl = normalVideoUrl;
       isHd = false;
       videoQuality = 'normal';
-      console.log('Using normal video version');
+      console.log('[GrokSpirit] Using normal video version');
     }
 
     //原始图片
@@ -572,10 +599,10 @@ async function downloadVideoWithMeta(videoInfo, referer) {
     //   desiredFilenameQueue.push(videoFilename);
     // }
     await chrome.downloads.download({ url: finalVideoUrl, filename: videoFilename, conflictAction: 'uniquify', saveAs: false });
-    console.log(`Download completed: ${videoQuality} version of video ${videoId}`);
+    console.log(`[GrokSpirit] Download completed: ${videoQuality} version of video ${videoId}`);
     //
   } catch (error) {
-    console.error('Download failed:', error);
+    console.error('[GrokSpirit] Download failed:', error);
     throw error;
   }
 }

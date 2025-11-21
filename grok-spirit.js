@@ -91,6 +91,23 @@
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
+        .gs-btn-gen-images {
+            background: #f48fb1;
+            color: #fff;
+            border-color: #ec407a;
+        }
+
+        .gs-btn-gen-images:hover {
+            background: #f06292;
+            border-color: #d81b60;
+        }
+
+        .gs-btn-gen-images.gs-active {
+            background: #c2185b;
+            border-color: #880e4f;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
         .gs-btn-download {
             background: #6f42c1;
             color: #fff;
@@ -507,6 +524,7 @@
                     <!-- 左侧按钮组 -->
                     <div style="display:flex; gap:6px;">
                         <button class="gs-btn gs-btn-clipboard" title="Copy from clipboard">📥 Clipboard</button>
+                        <button class="gs-btn gs-btn-gen-images" title="Enable image generation">🎨 Gen Images</button>
                         <button class="gs-btn gs-btn-spicy" title="Enable spicy mode">🌶️ Spicy Mode</button>
                     </div>
                     <!-- 右侧状态 + 按钮 -->
@@ -529,6 +547,19 @@
             clipboardBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
                 handleClipboardCopy();
+            });
+        }
+
+        const genImagesBtn = state.resultPanel.querySelector('.gs-btn-gen-images');
+        if (genImagesBtn) {
+            genImagesBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                //
+                state.currentData.genImages = !state.currentData.genImages;
+                updateGenImagesStatus();
+                await saveData();
+                //刷新页面
+                window.location.reload();
             });
         }
 
@@ -679,6 +710,7 @@
         container.parentNode.insertBefore(state.resultPanel, container.nextSibling);
     }
     function updateResultPanel() {
+        updateGenImagesStatus();
         updateSpicyStatus();
         updateProcessingLayer();
         updateFolderInput();
@@ -690,6 +722,14 @@
         spicyBtn.classList.remove('gs-active');
         if (state.currentData.spicy === true) {
             spicyBtn.classList.add('gs-active');
+        }
+    }
+    function updateGenImagesStatus() {
+        const genImagesBtn = state.resultPanel.querySelector('.gs-btn-gen-images');
+        if (!genImagesBtn) return;
+        genImagesBtn.classList.remove('gs-active');
+        if (state.currentData.genImages === true) {
+            genImagesBtn.classList.add('gs-active');
         }
     }
     function updateProcessingLayer() {
